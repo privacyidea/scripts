@@ -3,6 +3,7 @@ from flask import Flask
 from privacyidea.lib.token import unassign_token, assign_token
 from privacyidea.lib.user import User
 import argparse
+from flask_sqlalchemy import SQLAlchemy
 
 __doc__ = """
 This is a script that can be called by the privacyIDEA script handler.
@@ -39,7 +40,9 @@ def reassign_token(serial, username):
     app = Flask(__name__, static_folder="static",
                 template_folder="static/templates")
     app.config.from_pyfile("/etc/privacyidea/pi.cfg", silent=True)
-
+    db = SQLAlchemy()
+    db.init_app(app)
+    
     with app.app_context():
         # Set global values
         unassign_token(serial)
