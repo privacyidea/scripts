@@ -6,6 +6,7 @@ import argparse
 from flask_sqlalchemy import SQLAlchemy
 from privacyidea.lib.utils import BASE58
 from privacyidea.lib.crypto import generate_password
+from privacyidea.app import create_app
 
 __doc__ = """
 This scripts create new tokens for a given user.
@@ -47,11 +48,9 @@ REALM = "testfoo"
 
 
 def create_token(serial, username):
-    app = Flask(__name__, static_folder="static",
-                template_folder="static/templates")
-    app.config.from_pyfile("/etc/privacyidea/pi.cfg", silent=True)
-    db = SQLAlchemy()
-    db.init_app(app)
+    app = create_app(config_name="production",
+                     config_file="/etc/privacyidea/pi.cfg",
+                     silent=True)
 
     with app.app_context():
         # Set global values
