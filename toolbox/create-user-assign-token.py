@@ -57,10 +57,11 @@ def assign_user(resolver, realm, username, email, givenname, surname, serial, pi
         if not user_obj.exist():
             print(" +- Creating user {0!s} in {1!s}/{2!s}.".format(username, resolver, realm))
             try:
-                user_obj = create_user(resolver, {"username": username,
-                                                  "email": email,
-                                                  "givenname": givenname,
-                                                  "surname": surname}, password="")
+                create_user(resolver, {"username": username,
+                                       "email": email,
+                                       "givenname": givenname,
+                                       "surname": surname}, password="")
+                user_obj = User(username, realm, resolver=resolver)
             except UserError as err:
                 sys.stderr.write("+-- Failed to create user: {0!s}.\n".format(err))
                 return
