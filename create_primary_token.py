@@ -13,7 +13,7 @@ import logging
 
 __doc__ = """
 This scripts creates new tokens of the specified types for all users in a
-given realm who do not already have an active token of this type.
+given realm who do not already have a token of this type.
 This script can be run from the privacyIDEA event handler or as root,
 e.g. from a cronjob to make sure every user has a base set of tokens.
 The script is usually called with the argument --realm <REALM>. It can also
@@ -33,11 +33,19 @@ argument --user <USER>.
 """
 
 ADMIN_USER = "tokenadmin"
-PRIMARY_TOKEN_TYPES = ["email"]
+PRIMARY_TOKEN_TYPES = ["sms"]
+ADD_PARAMS = {"sms": {"dynamic_phone": True},
+              "email": {"dynamic_email": True}}
 
-log = logging.getLogger("privacyidea.create_primary_token.py")
+log = logging.getLogger("privacyidea.scripts.create_primary_token")
 
 def create_primary_tokens(realm, username=None):
+
+    # for reasons of speed in the unprivileged case, imports are placed here
+    from privacyidea.lib.token import init_token, get_tokens
+    from privacyidea.lib.user import User, get_user_list
+    from privacyidea.app import create_app
+
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
                      silent=True)
@@ -53,14 +61,17 @@ def create_primary_tokens(realm, username=None):
             user_objects = [User(username, realm)]
         for user_obj in user_objects:
             for type in PRIMARY_TOKEN_TYPES:
-                tokens = get_tokens(user=user_obj, tokentype=type,
-                                    active=True)
+                tokens = get_tokens(user=user_obj, tokentype=type)
                 # if no token of the specified type exists, create one
+                # create sms token only if mobile number exists
                 if len(tokens) == 0:
-                    params = {"type": type, "dynamic_email": True}
-                    init_token(params, user_obj)
-                    log.info('Enrolled a primary {0!s} token '
-                             'for {1!s}@{2!s}'.format(type, username, realm))
+                    if type is not "sms" or (type == "sms" and
+                            user_obj.get_user_phone(phone_type='mobile', index=0)):
+                        params = {"type": type}
+                        params.update(ADD_PARAMS[type])
+                        init_token(params, user_obj)
+                        log.info('Enrolled a primary {0!s} token '
+                                 'for {1!s}@{2!s}'.format(type, username, realm))
 
 
 # parse input arguments
@@ -85,11 +96,6 @@ if os.geteuid() == 0 or \
 
     # catch event handler called from WebUI without realm context
     if args.realm != 'none':
-
-        # for reasons of speed in the unprivileged case, imports are placed here
-        from privacyidea.lib.token import init_token, get_tokens
-        from privacyidea.lib.user import User, get_user_list
-        from privacyidea.app import create_app
 
         # start the action
         ret = create_primary_tokens(args.realm, username=args.username)
