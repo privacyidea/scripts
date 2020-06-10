@@ -17,7 +17,7 @@ given realm who do not already have an active token of this type.
 This script can be run from the privacyIDEA event handler or as root,
 e.g. from a cronjob to make sure every user has a base set of tokens.
 The script is usually called with the argument --realm <REALM>. It can also
-be used to enroll the primary tokens for a specific user with the additional 
+be used to enroll the primary tokens for a specific user with the additional
 argument --user <USER>.
 (c) 2020, Henning Hollermann <henning.hollermann@netknights.it>
     This program is free software; you can redistribute it and/or modify
@@ -62,7 +62,7 @@ def create_primary_tokens(realm, username=None):
                               "dynamic_email": True}
                     init_token(params, user_obj)
                     log.info('Enrolled a primary {0!s} token '
-                             'for {1!s}@{2!s}'.format(type,username,realm))
+                             'for {1!s}@{2!s}'.format(type, username, realm))
 
 
 # parse input arguments
