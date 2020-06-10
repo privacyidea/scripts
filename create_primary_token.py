@@ -33,7 +33,7 @@ argument --user <USER>.
 """
 
 ADMIN_USER = "tokenadmin"
-PRIMARY_TOKEN_TYPES = ["sms", "email"]
+PRIMARY_TOKEN_TYPES = ["email"]
 
 log = logging.getLogger("privacyidea.create_primary_token.py")
 
@@ -57,8 +57,7 @@ def create_primary_tokens(realm, username=None):
                                     active=True)
                 # if no token of the specified type exists, create one
                 if len(tokens) == 0:
-                    params = {"type": type, "dynamic_phone": True,
-                              "dynamic_email": True}
+                    params = {"type": type, "dynamic_email": True}
                     init_token(params, user_obj)
                     log.info('Enrolled a primary {0!s} token '
                              'for {1!s}@{2!s}'.format(type, username, realm))
