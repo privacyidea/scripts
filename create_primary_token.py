@@ -12,7 +12,7 @@ import os
 import logging
 
 __doc__ = """
-This scripts creates new tokens of the specified types for all users in a 
+This scripts creates new tokens of the specified types for all users in a
 given realm who do not already have an active token of this type.
 This script can be run from the privacyIDEA event handler or as root,
 e.g. from a cronjob to make sure every user has a base set of tokens.
@@ -37,6 +37,7 @@ PRIMARY_TOKEN_TYPES = ["totp"]
 
 log = logging.getLogger("privacyidea.create_primary_token.py")
 
+
 def create_primary_tokens(realm, username=None):
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
@@ -46,26 +47,32 @@ def create_primary_tokens(realm, username=None):
         # if no username is given, get all users from the specified realm
         if not username:
             user_list = get_user_list({"realm": realm})
-            user_objects = [User(user["username"], realm) for user in user_list]
+            user_objects = [User(user["username"], realm)
+                            for user in user_list]
         # else, get only the specified user
         else:
             user_objects = [User(username, realm)]
         for user_obj in user_objects:
             for type in PRIMARY_TOKEN_TYPES:
-                tokens = get_tokens(user=user_obj, tokentype=type, active=True)
+                tokens = get_tokens(user=user_obj, tokentype=type,
+                                    active=True)
                 # if no token of the specified type exists, create one
                 if len(tokens) == 0:
-                    params = {"type": type, "dynamic_phone": True, "dynamic_email": True}
+                    params = {"type": type, "dynamic_phone": True,
+                              "dynamic_email": True}
                     init_token(params, user_obj)
-                    log.info('Enrolled a primary {0!s} token for {1!s}@{2!s}'.format(type,username,realm))
-    return 0
+                    log.info('Enrolled a primary {0!s} token '
+                             'for {1!s}@{2!s}'.format(type,username,realm))
+
 
 # parse input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--user', dest='username',
-                    help="Create primary tokens only for this specific user in the given realm")
+                    help="Create primary tokens only for this "
+                    "specific user in the given realm")
 parser.add_argument('--realm', dest='realm', required=True,
-                    help="Realm for which the primary tokens should be created (required argument)")
+                    help="Realm for which the primary tokens "
+                    "should be created (required argument)")
 parser.add_argument('--logged_in_user', dest='logged_in_user',
                     help="Triggering user")
 parser.add_argument('--logged_in_role', dest='logged_in_role',
