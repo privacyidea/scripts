@@ -33,10 +33,9 @@ argument --user <USER>.
 """
 
 ADMIN_USER = "tokenadmin"
-PRIMARY_TOKEN_TYPES = ["totp"]
+PRIMARY_TOKEN_TYPES = ["sms", "email"]
 
 log = logging.getLogger("privacyidea.create_primary_token.py")
-
 
 def create_primary_tokens(realm, username=None):
     app = create_app(config_name="production",
@@ -45,7 +44,7 @@ def create_primary_tokens(realm, username=None):
 
     with app.app_context():
         # if no username is given, get all users from the specified realm
-        if not username:
+        if not username or username == 'none':
             user_list = get_user_list({"realm": realm})
             user_objects = [User(user["username"], realm)
                             for user in user_list]
@@ -85,13 +84,16 @@ args = parser.parse_args()
 if os.geteuid() == 0 or \
         (args.logged_in_role == "admin" and ADMIN_USER in args.logged_in_user):
 
-    # for reasons of speed in the unprivileged case, imports are placed here
-    from privacyidea.lib.token import init_token, get_tokens
-    from privacyidea.lib.user import User, get_user_list
-    from privacyidea.app import create_app
+    # catch event handler called from WebUI without realm context
+    if args.realm != 'none':
 
-    # start the action
-    ret = create_primary_tokens(args.realm, username=args.username)
+        # for reasons of speed in the unprivileged case, imports are placed here
+        from privacyidea.lib.token import init_token, get_tokens
+        from privacyidea.lib.user import User, get_user_list
+        from privacyidea.app import create_app
+
+        # start the action
+        ret = create_primary_tokens(args.realm, username=args.username)
 
 if DEBUG:
     stop = timeit.default_timer()
