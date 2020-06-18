@@ -14,8 +14,8 @@ parser.add_argument('--config', '-c', help="Specify the config file.",
                     default=DEFAULT_CONFIG)
 parser.add_argument('--generate', '-g', help="Generate a config file.",
                     action="store_true")
-parser.add_argument('phones', metavar='N', type=str, nargs='?',
-                    help='Phone numbers to send SMS to.')
+parser.add_argument('phone', metavar='N', type=str, nargs='?',
+                    help='Phone number to send SMS to.')
 parser.add_argument('infile', nargs='?', type=argparse.FileType('r'),
                     default=sys.stdin)
 args = parser.parse_args()
@@ -34,7 +34,7 @@ custom_parameter =
 if args.generate:
     generate_config()
 
-if not args.phones:
+if not args.phone:
     print("You need to specify a phone number.")
     sys.exit(1)
 
@@ -47,7 +47,7 @@ with open(args.config) as file:
                 k, v = line.split("=", 2)
                 config[k.strip()] = v.strip()
             except ValueError:
-                print("Cann not unpack {0!s}.".format(line))
+                print("Can not unpack {0!s}.".format(line))
 
 unique_id = "privacyidea_{0!s}".format(uuid.uuid1())
 
@@ -61,7 +61,7 @@ headers = {"accept": "application/json",
 
 json_body = {"from": "privacyIDEA",
              "message_content": message,
-             "recipient_address": [{"number": phone} for phone in args.phones],
+             "recipient_address": [{"number": args.phone}],
              "priority": False,
              "unique_identifier": unique_id}
 if "campaign_name" in config:
@@ -71,6 +71,7 @@ if "custom_parameter" in config:
 
 r = requests.post(URL, headers=headers, json=json_body,
                   auth=(config.get("USERNAME"), config.get("PASSWORD")))
+print(r)
 if r.status_code != 200:
     # return an error, which will also be logged as return code in privacyIDEA
     sys.exit(r.status_code)
