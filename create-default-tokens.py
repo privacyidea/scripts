@@ -66,13 +66,15 @@ def create_primary_tokens(realm, username=None):
                     # if no token of the specified type exists, create one
                     # create sms token only if mobile number exists
                     if len(tokens) == 0:
-                        if type is not "sms" or (type == "sms" and
-                                                 user_obj.get_user_phone(phone_type='mobile', index=0)):
+                        if type == "sms":
+                            has_phone = user_obj.get_user_phone(index=0,
+                                                                phone_type='mobile')
+                        if (type == "sms" and has_phone) or type is not "sms":
                             params = {"type": type}
                             params.update(ADD_PARAMS[type])
                             init_token(params, user_obj)
-                            log.info('Enrolled a primary {0!s} token '
-                                     'for {1!s}@{2!s}'.format(type, username, realm))
+                            log.info('Enrolled a primary {0!s} token for '
+                                     '{1!s}@{2!s}'.format(type,username, realm))
             else:
                 log.info('User {0!s} does not exists in any resolver in '
                          'realm {1!s}'.format(username, realm))
@@ -96,7 +98,8 @@ args = parser.parse_args()
 
 # check for privileges to run the script and only proceed then
 if os.geteuid() == 0 or \
-        (args.logged_in_role == "admin" and args.logged_in_user == ADMIN_USER + '@'):
+        (args.logged_in_role == "admin" and
+         args.logged_in_user == ADMIN_USER + '@'):
 
     # catch event handler called from WebUI without realm context
     if args.realm != 'none':
@@ -106,4 +109,3 @@ if os.geteuid() == 0 or \
 if DEBUG:
     stop = timeit.default_timer()
     log.info("auto-enrollment script runtime: {0:.2f} s".format(stop - start))
-
