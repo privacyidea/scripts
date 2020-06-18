@@ -12,7 +12,8 @@ DEFAULT_CONFIG = "/etc/privacyidea/boomalert.cfg"
 parser = argparse.ArgumentParser(description='Send SMS via Boom Alert.')
 parser.add_argument('--config', '-c', help="Specify the config file.",
                     default=DEFAULT_CONFIG)
-parser.add_argument('--generate', '-g', help="Generate a config file.", action="store_true")
+parser.add_argument('--generate', '-g', help="Generate a config file.",
+                    action="store_true")
 parser.add_argument('phones', metavar='N', type=str, nargs='?',
                     help='Phone numbers to send SMS to.')
 parser.add_argument('infile', nargs='?', type=argparse.FileType('r'),
@@ -60,7 +61,7 @@ headers = {"accept": "application/json",
 
 json_body = {"from": "privacyIDEA",
              "message_content": message,
-             "recipient_address": [{"number":"4915129601417"}],
+             "recipient_address": [{"number": phone} for phone in args.phones],
              "priority": False,
              "unique_identifier": unique_id}
 if "campaign_name" in config:
