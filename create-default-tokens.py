@@ -74,7 +74,8 @@ def create_primary_tokens(realm, username=None):
                             params.update(ADD_PARAMS[type])
                             init_token(params, user_obj)
                             log.info('Enrolled a primary {0!s} token for '
-                                     '{1!s}@{2!s}'.format(type,username, realm))
+                                     '{1!s}@{2!s}'.format(type,
+                                                          username, realm))
             else:
                 log.info('User {0!s} does not exists in any resolver in '
                          'realm {1!s}'.format(username, realm))
