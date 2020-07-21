@@ -1,9 +1,7 @@
 #!/opt/privacyidea/bin/python
 from flask import Flask
-from privacyidea.lib.error import TokenAdminError, UserError, ResourceNotFoundError
 from privacyidea.lib.token import init_token
 from privacyidea.lib.tokenclass import TOKENKIND
-from privacyidea.lib.user import User, create_user
 import argparse
 from flask_sqlalchemy import SQLAlchemy
 from privacyidea.app import create_app
