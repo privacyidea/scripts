@@ -51,7 +51,7 @@ def import_token(tokenrealm, serial, seed, counter):
             elif len(seed) == 64:
                 hash = "sha256"
             else:
-                raise Exception("Long seed length.")
+                raise Exception("Unsupported seed length: {0!s}.".format(len(seed)))
             init_param = {'serial': serial,
                           'otpkey': seed,
                           'hashlib': hash,
