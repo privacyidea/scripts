@@ -35,13 +35,11 @@ with open(args.file, 'r') as f:
             current_token["serial"] = serial
 
         if re.match("sccTokenData", line):
-            m = re.search(r"sccKey=\((.*?)\).*?sccSeq=\((.*?)\).*", line)
+            # First, find the encryption key
+            m = re.search(r"sccKey=\((.*?)\).*", line)
             if m:
                 seed = m.group(1)
                 algo, data = seed.split(":")
-                current_token["algo"] = algo
-                current_token["data"] = data
-
                 if algo.lower() == "aes":
                     aes = AES.new(aes_key, AES.MODE_ECB)
                     d = aes.decrypt(binascii.unhexlify(data))
@@ -51,17 +49,21 @@ with open(args.file, 'r') as f:
                     des = DES.new(des_key)
                     d = des.decrypt(binascii.unhexlify(data))
                     current_token["seed"] = d.strip("\x00")
-
-                counter = m.group(1)
-                algo, data = counter.split(":")
-                if algo.lower() == "des":
-                    des = DES.new(des_key)
-                    d = des.decrypt(binascii.unhexlify(data))
-                    current_token["counter"] = d.strip("\x00")
             else:
-                print("Could not find key for token! {0}".format(line))
+                sys.stderr.write("Could not find key for token! {0}\n".format(line))
 
-        if "serial" in current_token and "data" in current_token:
+            if "seed" in current_token:
+                # Then find the counter
+                m = re.search(r"sccSeq=\((.*?)\).*", line)
+                if m:
+                    counter = m.group(1)
+                    algo, data = counter.split(":")
+                    if algo.lower() == "des":
+                        des = DES.new(des_key)
+                        d = des.decrypt(binascii.unhexlify(data))
+                        current_token["counter"] = d.strip("\x00")
+
+        if "serial" in current_token and "seed" in current_token:
             all_tokens.append(current_token)
             current_token = {}
 
