@@ -7,18 +7,19 @@ from flask_sqlalchemy import SQLAlchemy
 from privacyidea.app import create_app
 
 __doc__ = """
-This scripts deletes an existing SMS token for a user, if the user gets a new token enrolled.
+This scripts either disables or deletes all existing SMS tokens for a user, 
+e.g. if the user gets a new token enrolled.
 
 This is a script that can be called by the privacyIDEA script handler.
 
 it takes the arguments
 
-   delete-token.py --user <existing user> --realm <user-realm>
+   delete-or-disable-token.py --user <existing user> --realm <user-realm>
 
 You can place the script in your scripts directory /etc/privacyidea/scripts/
 and use it in the script event handler.
 
-Adapt it (like the TOKENTYPE and REALM) to your needs.
+Adapt it (like the TOKENTYPE and ACTION) to your needs.
 
 (c) 2020, Cornelius Kölbel <cornelius.koelbel@netknights.it>
 
@@ -37,9 +38,11 @@ Adapt it (like the TOKENTYPE and REALM) to your needs.
 """
 
 TOKENTYPE_TO_DELETE = "sms"
+ACTION = "disable"
+#ACTION = "delete"
 
 
-def delete_token(username, realm, ttype):
+def modify_token(username, realm, ttype):
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
                      silent=True)
@@ -49,8 +52,11 @@ def delete_token(username, realm, ttype):
         if user_obj:
             toks = get_tokens(user=user_obj, tokentype=ttype)
             # Delete all SMS tokens.
-            for tok_obj  in toks:
-                tok_obj.delete_token()
+            for tok_obj in toks:
+                if ACTION == "delete":
+                    tok_obj.delete_token()
+                else:
+                    tok_obj.enalbe(False)
 
 
 parser = argparse.ArgumentParser()
@@ -58,6 +64,6 @@ parser.add_argument('--user', dest='username')
 parser.add_argument('--realm', dest='realm')
 args = parser.parse_args()
 
-delete_token(args.username, args.realm, TOKENTYPE_TO_DELETE)
+modify_token(args.username, args.realm, TOKENTYPE_TO_DELETE)
 
 
