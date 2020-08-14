@@ -1,10 +1,11 @@
 #!/opt/privacyidea/bin/python
 from flask import Flask
-from privacyidea.lib.token import remove_token, get_tokens
+from privacyidea.lib.token import get_tokens, enable_token
 from privacyidea.lib.user import User
 import argparse
 from flask_sqlalchemy import SQLAlchemy
 from privacyidea.app import create_app
+import datetime
 
 __doc__ = """
 This scripts either disables or deletes all existing SMS tokens for a user, 
@@ -40,6 +41,7 @@ Adapt it (like the TOKENTYPE and ACTION) to your needs.
 TOKENTYPE_TO_DELETE = "sms"
 ACTION = "disable"
 #ACTION = "delete"
+LOGFILE = "/var/log/privacyidea/disabled-tokens.log"
 
 
 def modify_token(username, realm, ttype):
@@ -50,13 +52,18 @@ def modify_token(username, realm, ttype):
     with app.app_context():
         user_obj = User(username, realm)
         if user_obj:
-            toks = get_tokens(user=user_obj, tokentype=ttype)
+            # Get all active tokens of this types from this user
+            toks = get_tokens(user=user_obj, tokentype=ttype, active=True)
             # Delete all SMS tokens.
             for tok_obj in toks:
+                serial = tok_obj.token.serial
                 if ACTION == "delete":
                     tok_obj.delete_token()
                 else:
-                    tok_obj.enalbe(False)
+                    enable_token(serial, False)
+                with open(LOGFILE, "a") as f:
+                    f.write(u"{0!s}, {1!s}, {2!s}, {3!s}, {4!s}\n".format(datetime.datetime.now().strftime("%Y-%m-%dT%H:%M"),
+                                                            args.username, args.realm, ACTION, serial))
 
 
 parser = argparse.ArgumentParser()
@@ -65,5 +72,4 @@ parser.add_argument('--realm', dest='realm')
 args = parser.parse_args()
 
 modify_token(args.username, args.realm, TOKENTYPE_TO_DELETE)
-
 
