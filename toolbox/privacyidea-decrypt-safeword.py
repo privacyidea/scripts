@@ -21,12 +21,28 @@ parser.add_argument("-f", "--file", help="LDIF export file.", required=True)
 args = parser.parse_args()
 
 all_tokens = []
+assigned_tokens = {}
 current_token = {}
+current_user = {}
 aes_key = "encryptionkey"
-des_key = "encryoptionkey"
+des_key = "encryptionkey"
 
 with open(args.file, 'r') as f:
     for line in f:
+        # Read a user
+        if re.match("objectclass: SccUser", line):
+            current_user = {}
+        if re.match("sccUserId", line):
+            m = re.match("sccUserId:(.*)$", line)
+            user = m.group(1).strip()
+            current_user["user"] = user
+        # TODO: We only read one assigned token
+        if re.match("sccAuthenticator: 1:", line):
+            m = re.match("sccAuthenticator: 1:(.*)$", line)
+            serial = m.group(1).strip()
+            current_user["serial"] = serial
+
+        # Read a token
         if re.match("objectclass: SccDesAuthenticator.*", line):
             current_token = {}
         if re.match("sccAuthenticatorId", line):
@@ -67,6 +83,10 @@ with open(args.file, 'r') as f:
             all_tokens.append(current_token)
             current_token = {}
 
+        if "serial" in current_user and "user" in current_user:
+            assigned_tokens[current_user["serial"]] = current_user["user"]
 
 for token in all_tokens:
-    print("{0!s}, {1!s}, {2!s}".format(token.get("serial"), token.get("seed"), token.get("counter", 0)))
+    serial = token.get("serial")
+    print("{0!s}, {1!s}, {2!s}, {3!s}".format(serial, token.get("seed"), token.get("counter", 0),
+                                              assigned_tokens.get(serial, "")))
