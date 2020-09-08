@@ -2,6 +2,7 @@
 from flask import Flask
 from privacyidea.lib.token import init_token
 from privacyidea.lib.tokenclass import TOKENKIND
+from privacyidea.lib.user import User
 import argparse
 from flask_sqlalchemy import SQLAlchemy
 from privacyidea.app import create_app
@@ -14,7 +15,7 @@ This imports a CSV file of tokens.
 
 The CSV file should look like this:
 
-    serial, seed, counter
+    serial, seed, counter, user
 
 The tokens are always HOTP tokens.
 The hash algorithm is determined by the length of the seed.
@@ -37,7 +38,7 @@ Adapt it to your needs.
 """
 
 
-def import_token(tokenrealm, serial, seed, counter):
+def import_token(tokenrealm, serial, seed, counter, user):
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
                      silent=True)
@@ -56,11 +57,21 @@ def import_token(tokenrealm, serial, seed, counter):
                           'otpkey': seed,
                           'hashlib': hash,
                           'description': "imported"}
-            # Imported tokens are usually hardware tokens
+            user_obj = None
+            if user.strip():
+                # If we have a username, we create a user_obj
+                try:
+                    user_obj = User(user, tokenrealm)
+                except Exception:
+                    sys.stderr.write("+-- Failed to create user {0!s}.".format(user))
+            # Imported tokens are usually hardware tokens, with the given user
             token = init_token(init_param,
+                               user=user_obj,
                                tokenrealms=[tokenrealm],
                                tokenkind=TOKENKIND.HARDWARE)
-            token.set_otp_count(counter)
+            # Set the last OTP counter if it is higher than in the system
+            if token.get_otp_count() < counter:
+                token.set_otp_count(counter)
         except Exception as err:
             sys.stderr.write(" +-- Failed importing token {0!s}: {1!s}.\n".format(serial, err))
 
@@ -74,8 +85,8 @@ i = 0
 for line in sys.stdin:
     i += 1
     try:
-        serial, seed, counter = [x.strip() for x in line.split(",")]
-        import_token(args.tokenrealm, serial, seed, counter)
+        serial, seed, counter, user = [x.strip() for x in line.split(",")]
+        import_token(args.tokenrealm, serial, seed, counter, user)
     except ValueError:
         sys.stderr.write("Malformed line {0!s}. Probably wrong number of columns.\n".format(i))
 
