@@ -70,8 +70,8 @@ def import_token(tokenrealm, serial, seed, counter, user):
                                tokenrealms=[tokenrealm],
                                tokenkind=TOKENKIND.HARDWARE)
             # Set the last OTP counter if it is higher than in the system
-            if token.get_otp_count() < counter:
-                token.set_otp_count(counter)
+            if token.get_otp_count() < int(counter):
+                token.set_otp_count(int(counter))
         except Exception as err:
             sys.stderr.write(" +-- Failed importing token {0!s}: {1!s}.\n".format(serial, err))
 
