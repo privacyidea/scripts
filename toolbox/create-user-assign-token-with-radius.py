@@ -9,6 +9,8 @@ from privacyidea.app import create_app
 import sys
 import urllib3
 import datetime
+import requests
+import traceback
 
 
 __doc__ = """
@@ -25,7 +27,7 @@ The script takes a CSV file
 
 The CSV file should look like this:
 
-   username, email, givenname, surname, hard/soft, attribute1, attribute2, pin, serial, validity period
+   username, email, givenname, surname, hard/soft, pin, serial, validity period
 
 Adapt it to your needs.
 
@@ -46,12 +48,12 @@ Adapt it to your needs.
 """
 
 # Change this to your needs:
-ATTRIBUTES = ["attribute1", "attribute2"]
 TOKEN_TYPE = "registration"
 API_USER = "super"
 API_PASSWORD = "test"
 TOKENINFO = {"source": "scriptsource/T",
              "imported": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")}
+RADIUS_IDENTIFIER = "radius1"
 HARDWARE = "H"
 SOFTWARE = "S"
 
@@ -66,7 +68,7 @@ def get_auth_tok():
     return authorization
 
 
-def assign_user(resolver, realm, username, email, givenname, surname, serial, pin, attr1, attr2, validity, hard_or_soft):
+def assign_user(resolver, realm, username, email, givenname, surname, serial, pin, validity, hard_or_soft):
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
                      silent=True)
@@ -87,9 +89,7 @@ def assign_user(resolver, realm, username, email, givenname, surname, serial, pi
                 create_user(resolver, {"username": username,
                                        "email": email,
                                        "givenname": givenname,
-                                       "surname": surname,
-                                       ATTRIBUTES[0]: attr1,
-                                       ATTRIBUTES[1]: attr2}, password="")
+                                       "surname": surname}, password="")
                 user_obj = User(username, realm, resolver=resolver)
             except UserError as err:
                 sys.stderr.write("+-- Failed to create user: {0!s}.\n".format(err))
@@ -102,9 +102,7 @@ def assign_user(resolver, realm, username, email, givenname, surname, serial, pi
             print(" +- Updating user {0!s} in {1!s}/{2!s}.".format(username, resolver, realm))
             user_obj.update_user_info({"email": email,
                                        "givenname": givenname,
-                                       "surname": surname,
-                                       ATTRIBUTES[0]: attr1,
-                                       ATTRIBUTES[1]: attr2})
+                                       "surname": surname})
 
         # Token operations
 
@@ -127,7 +125,7 @@ def assign_user(resolver, realm, username, email, givenname, surname, serial, pi
             print(" +- Creating token of type {0!s}.".format(TOKEN_TYPE))
             params = {"type": TOKEN_TYPE,
                       "genkey": 1,
-                      "user": user_obj.loginname,
+                      "user": user_obj.login,
                       "realm": user_obj.realm}
             r = requests.post('https://localhost/token/init', verify=False,
                               data=params,
@@ -141,11 +139,12 @@ def assign_user(resolver, realm, username, email, givenname, surname, serial, pi
         print(" +- Creating RADIUS token for user {0!s}.".format(user_obj))
         tok = init_token({"type": "radius",
                           "radius.identifier": RADIUS_IDENTIFIER,
-                          "radius.user": user_obj.loginname},
+                          "radius.user": user_obj.login},
                          user=user_obj)
-        tok.add_tokeninf(TOKENINFO)
+        for k, v in TOKENINFO.items():
+            tok.add_tokeninfo(k, v)
         validity_end = datetime.datetime.now() + datetime.timedelta(int(validity))
-        tok.set_validity_period_end(validity_end.strftime("%Y-%m-%dT%H:%M+OOOO"))
+        tok.set_validity_period_end(validity_end.strftime("%Y-%m-%d %H:%M:00 CET"))
 
 
 parser = argparse.ArgumentParser()
@@ -159,11 +158,13 @@ i = 0
 for line in sys.stdin:
     i += 1
     try:
-        username, email, givenname, surname, hard_or_soft, attr1, attr2, pin, serial, validity = [x.strip() for x in line.split(",")]
+        username, email, givenname, surname, hard_or_soft, pin, serial, validity = [x.strip() for x in line.split(",")]
         assign_user(args.resolver, args.realm, username, email, givenname, surname,
-                    serial, pin, attr1, attr2, validity, hard_or_soft)
+                    serial, pin, validity, hard_or_soft)
     except ValueError:
         sys.stderr.write("Malformed line {0!s}. Probably wrong number of columns.\n".format(i))
+        sys.stderr.write(u"{0!s}".format(traceback.format_exc()))
+
 
 
 
