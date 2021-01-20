@@ -109,7 +109,7 @@ def merge_resolvers(source_realm, target_resolver, target_realm):
         else:
             sys.stderr.write("User with username {0!s} already exists in resolver "
                              "{1!s}.\n".format(new_user_attrs["username"],
-                                         target_resolver))
+                                               target_resolver))
 
 
 # parse command line arguments
