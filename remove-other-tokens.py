@@ -22,7 +22,7 @@ It takes the arguments
    remove-other-tokens.py --user <user> --realm <realm> --serial <token serial>
 
 You can place the script in your scripts directory /etc/privacyidea/scripts/
-and use it in the script event handler. It logs with level debug to the 
+and use it in the script event handler. It logs with level debug to the
 privacyidea log file.
 
 Adapt it (like the REMOVE_OTHER_TOKENS_PER and ONLY_ACTIVE) to your needs.
@@ -51,8 +51,9 @@ ONLY_ACTIVE = False
 
 log = logging.getLogger("privacyidea.scripts.remove-other-tokens")
 
+
 def remove_other_tokens(serial, username, realm):
-    user_obj = User(login=username,realm=realm)
+    user_obj = User(login=username, realm=realm)
     # get the token which was enrolled during the triggering /token/init
     token_obj = get_one_token(serial=serial, user=user_obj)
     if token_obj:
@@ -69,7 +70,8 @@ def remove_other_tokens(serial, username, realm):
                  "".format(username, realm, len(remaining_tokens)))
         for tok in remaining_tokens:
             log.info("~ a {0!s} token with serial {1!s}".format(tok.type.upper(),
-                                                                     tok.token.serial))
+                                                                tok.token.serial))
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--serial', dest='serial', help="The serial of the enrolled token.")
@@ -86,4 +88,3 @@ with app.app_context():
     log.info("Starting script to remove tokens different from {0!s} per {1!s}"
              "".format(args.serial, REMOVE_OTHER_TOKENS_PER))
     remove_other_tokens(args.serial, args.username, args.realm)
-
