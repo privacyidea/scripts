@@ -7,7 +7,7 @@ from privacyidea.app import create_app
 import logging
 
 __doc__ = """
-This scripts create new tokens for a given user.
+This scripts removes tokens of a given user except the one given by serial.
 #
 This is a script that can be called by the privacyIDEA script handler. It
 is designed to run as a post event handler at /token/init. It will remove
@@ -43,8 +43,8 @@ Adapt it (like the REMOVE_OTHER_TOKENS_PER and ONLY_ACTIVE) to your needs.
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 """
 
-# "type": remove other tokens that share the type of the token in the request
-# "user": remove all other tokens of the user. This is the default.
+# "type": remove other tokens of the given user that share the type of the token given by serial.
+# "user": remove all tokens of the given user except the one given by serial. This is the default.
 REMOVE_OTHER_TOKENS_PER = "user"
 # set to True to remove only active tokens
 ONLY_ACTIVE = False
@@ -61,7 +61,7 @@ def remove_other_tokens(serial, username, realm):
         active = True if ONLY_ACTIVE is True else None
         # remove tokens if any
         for tok in get_tokens(user=user_obj, tokentype=tokentype, active=active):
-            if tok.token.serial and tok.token.serial != serial:
+             if tok.token.serial and tok.token.serial != serial:
                 remove_token(serial=tok.token.serial)
                 log.info("- Remove token with serial {0!s}".format(tok.token.serial))
         # check remaining tokens
