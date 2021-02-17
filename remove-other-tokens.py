@@ -63,13 +63,13 @@ def remove_other_tokens(serial, username, realm):
         for tok in get_tokens(user=user_obj, tokentype=tokentype, active=active):
              if tok.token.serial and tok.token.serial != serial:
                 remove_token(serial=tok.token.serial)
-                log.info("- Remove token with serial {0!s}".format(tok.token.serial))
+                log.debug("- Remove token with serial {0!s}".format(tok.token.serial))
         # check remaining tokens
         remaining_tokens = get_tokens(user=user_obj)
-        log.info("User {0!s}@{1!s} has {2!s} remaining tokens."
+        log.debug("User {0!s}@{1!s} has {2!s} remaining tokens."
                  "".format(username, realm, len(remaining_tokens)))
         for tok in remaining_tokens:
-            log.info("~ a {0!s} token with serial {1!s}".format(tok.type.upper(),
+            log.debug("~ a {0!s} token with serial {1!s}".format(tok.type.upper(),
                                                                 tok.token.serial))
 
 
