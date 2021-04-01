@@ -76,14 +76,19 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
     """
     This method checks if the user has the given userinfo value
     """
-    has_userinfo = False
-    if userinfo_key in user_obj.info:
-        if user_obj.info[userinfo_key] == userinfo_value:
-            has_userinfo = True
-    if not has_userinfo:
-        log.info("Userinfo does not match for user {0!s} in realm "
-                 "{1!s}.".format(user_obj.login, user_obj.realm))
-    return has_userinfo
+
+    # if no condition is specified, skip the check
+    if not userinfo_key and not userinfo_value:
+        return True
+
+    if userinfo_key in user_obj.info and \
+            user_obj.info[userinfo_key] == userinfo_value:
+        return True
+    else:
+        log.info("Userinfo key does not exists or value does not match"
+                 " for user {0!s} in realm {1!s}.".format(user_obj.login,
+                                                          user_obj.realm))
+        return False
 
 
 def create_default_tokens(realm, auth_token=None, username=None,
