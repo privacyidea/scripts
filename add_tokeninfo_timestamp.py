@@ -7,8 +7,7 @@ import datetime
 
 __doc__ = """
 This event handler script adds a timestamp as a token info. It can e.g. used
-at token_init or token_load to mark the token creation date to track token
-life cycles.
+at token_init to mark the token creation date to track token life cycles.
 It relies on the token serial which is given as argument --serial <SERIAL>.
 
 (c) 2021, Henning Hollermann <henning.hollermann@netknights.it>
