@@ -81,9 +81,10 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
     if not userinfo_key and not userinfo_value:
         return True
 
-    if userinfo_key in user_obj.info and \
-            user_obj.info[userinfo_key] == userinfo_value:
-        return True
+    if userinfo_key in user_obj.info:
+        if isinstance(user_obj.info[userinfo_key], str) and user_obj.info[userinfo_key] == userinfo_value or \
+                isinstance(user_obj.info[userinfo_key], list) and userinfo_value in user_obj.info[userinfo_key]:
+            return True
     else:
         log.info("Userinfo key does not exists or value does not match"
                  " for user {0!s} in realm {1!s}.".format(user_obj.login,
