@@ -1,14 +1,13 @@
 #!/opt/privacyidea/bin/python
 
-# debug enables logging of time delays to the privacyidea DEBUG log
-DEBUG = True
+# debug enables logging of script runtimes to the privacyidea DEBUG log
+TRACK_TIME = True
 
-if DEBUG:
+if TRACK_TIME:
     import timeit
     start = timeit.default_timer()
 
 import argparse
-import os
 import sys
 import logging
 import urllib3
@@ -17,17 +16,21 @@ import requests
 __doc__ = """
 This scripts creates new tokens of the specified types for all users in a
 given realm who do not already have a token of this type.
-You can add a userinfo condition to enroll primary tokens only for users which
-have the userinfo specified by --userinfo-key <KEY> and --userinfo-value <VAL>.
-This script is run as root from the command line, e.g. from a cronjob to make
-sure every user has a base set of tokens.
-The script is usually called with the argument --realm <REALM>. It can also
-be used to enroll the primary tokens for a specific user with the additional
-argument --user <USER>.
+
+The script must be called with the argument --realm <REALM>. 
+It can also be used to enroll the primary tokens for a specific user with 
+the additional argument --user <USER>.
+
+With the option --tokentype <TYPE> the hard-coded PRIMARY_TOKEN_TYPES can 
+be overwridden.  You can add a userinfo condition to enroll primary tokens 
+only for users which have the userinfo specified by --userinfo-key <KEY> 
+and --userinfo-value <VAL>.
 
 The tokens are either enrolled via Lib function (faster) or use the REST API
-which also triggers event handlers configured in privacyIDEA. Set this via
-the variable USE_API below.
+to enroll the token which also triggers event handlers configured in privacyIDEA. 
+Set this via the variable INIT_VIA_API.
+Note that the script must access also the library functions of privacyIDEA, so in
+most cases it must be run on the privacyIDEA server.
 
 (c) 2021, Henning Hollermann <henning.hollermann@netknights.it>
     This program is free software; you can redistribute it and/or modify
@@ -42,13 +45,17 @@ the variable USE_API below.
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 """
 
-URL = 'https://localhost/'
-VERIFY = False
-# use Lib or API layer
-USE_API = True
-ADMIN_USER = "myadmin"
+# the URL of the privacyIDEA server (defaults to https://localhost/)
+# URL = 'https://localhost:5000/'
+# verify the SSL certificate of the privacyIDEA server (defaults to False)
+# VERIFY = True
+# use Lib or API layer to init token (triggers event handler)
+INIT_VIA_API = True
+ADMIN_USER = "admin"
 ADMIN_PASSWORD = "test"
+# the list of token types to enroll. Overwritten by --tokentype option.
 PRIMARY_TOKEN_TYPES = ["registration"]
+# dictionary with parameters to add for the respective tokentype
 ADD_PARAMS = {"sms": {"dynamic_phone": True},
               "email": {"dynamic_email": True},
               "registration": {"description": "initial token"}}
@@ -86,14 +93,15 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
                 isinstance(user_obj.info[userinfo_key], list) and userinfo_value in user_obj.info[userinfo_key]:
             return True
     else:
-        log.info("Userinfo key does not exists or value does not match"
+        log.debug("Userinfo key does not exists or value does not match"
                  " for user {0!s} in realm {1!s}.".format(user_obj.login,
                                                           user_obj.realm))
         return False
 
 
 def create_default_tokens(realm, auth_token=None, username=None,
-                          userinfo_key=None, userinfo_value=None):
+                          userinfo_key=None, userinfo_value=None,
+                          tokentype=None):
     """
     This method creates the default tokens for the users in the given realm.
     You may add a userinfo condition.
@@ -102,6 +110,8 @@ def create_default_tokens(realm, auth_token=None, username=None,
     from privacyidea.lib.token import init_token, get_tokens
     from privacyidea.lib.user import User, get_user_list
     from privacyidea.app import create_app
+
+    tokentypes = [tokentype] if tokentype else PRIMARY_TOKEN_TYPES
 
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
@@ -119,7 +129,8 @@ def create_default_tokens(realm, auth_token=None, username=None,
         for user_obj in user_objects:
             if user_obj.exist():
                 if check_userinfo(user_obj, userinfo_key, userinfo_value):
-                    for type in PRIMARY_TOKEN_TYPES:
+                    for type in tokentypes:
+                        serial = None
                         tokens = get_tokens(user=user_obj, tokentype=type)
                         # if no token of the specified type exists, create one
                         # create sms token only if mobile number exists
@@ -127,28 +138,38 @@ def create_default_tokens(realm, auth_token=None, username=None,
                             if (type == "email" and not user_obj.info.get("email")) or \
                                (type == "sms" and not user_obj.get_user_phone(index=0,
                                                                               phone_type='mobile')):
-                                log.info("User {0!s} in realm {1!s} has no {2!s}. "
-                                         "Not creating {2!s} token.".format(user_obj.login,
-                                                                            user_obj.realm, type))
+                                log.info("User attribute missing for user {0!s}@{1!s}."
+                                         "Cannot create {2!s} token.".format(user_obj.login,
+                                                                             user_obj.realm, type))
                                 continue
                             else:
                                 params = {"type": type}
                                 params.update(ADD_PARAMS[type])
                                 params.update({"user": user_obj.login, "realm": user_obj.realm})
-                                if USE_API:
-                                    # enroll token via API (triggers event handlers)
+                                if INIT_VIA_API:
+                                    # enroll token via API (triggers event handlers at token_init)
                                     r = requests.post(URL + '/token/init', verify=VERIFY,
                                                       data=params,
                                                       headers={"Authorization": auth_token})
-                                    serial = r.json().get("detail").get("serial")
+                                    status = r.json().get("result").get("status")
+                                    if status is True:
+                                        serial = r.json().get("detail").get("serial")
+                                    else:
+                                        error = r.json().get("result").get("error")
+                                        log.info("Enrolling {0!s} token for user {1!s} in realm "
+                                                 "{2!s} via API: {3!s}".format(type,
+                                                                               user_obj.login,
+                                                                               user_obj.realm,
+                                                                               error.get("message")))
                                 else:
                                     # enroll token via lib method (faster)
                                     token_obj = init_token(params, user_obj)
                                     serial = token_obj.token.serial
                                 if serial:
                                     log.info('Enrolled a primary {0!s} token for '
-                                             '{1!s}@{2!s}'.format(type, user_obj.login,
-                                                                  user_obj.realm))
+                                             'user {1!s} in realm {2!s}'.format(type,
+                                                                                user_obj.login,
+                                                                                user_obj.realm))
                         else:
                             log.info("User {0!s} in realm {1!s} already has a {2!s} token. "
                                      "Not creating another one.".format(user_obj.login,
@@ -160,7 +181,7 @@ def create_default_tokens(realm, auth_token=None, username=None,
 
 # parse input arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--user', dest='username',
+parser.add_argument('--user', dest='username', required=False,
                     help="Create primary tokens only for this "
                          "specific user in the given realm")
 parser.add_argument('--realm', dest='realm', required=True,
@@ -171,21 +192,32 @@ parser.add_argument('--userinfo-key', dest='userinfo_key', required=False,
 parser.add_argument('--userinfo-value', dest='userinfo_value', required=False,
                     help="Create only tokens for users which have "
                          "this userinfo value.")
+parser.add_argument('--tokentype', dest='tokentype', required=False,
+                    help="Create tokens of this type. The default type "
+                         "is set in the script by the variable PRIMARY_TOKEN_TYPES")
 args = parser.parse_args()
 
-# check for privileges to run the script and only proceed then
-if os.geteuid() == 0:
+# early exit for usage at endpoints without realm or user context
+# nothing will be logged apart from the audit entry
+if args.realm == 'none' or args.username == 'none':
+    sys.exit()
 
-    # get auth token
-    auth_tok = get_auth_tok() if USE_API else None
-    # create tokens for users
-    create_default_tokens(args.realm,
-                          auth_token=auth_tok, username=args.username,
-                          userinfo_key=args.userinfo_key,
-                          userinfo_value=args.userinfo_value)
+# get auth token
+if INIT_VIA_API:
+    URL = URL if 'URL' in locals() else "https://localhost/"
+    VERIFY = VERIFY if 'VERIFY' in locals() else False
+    auth_tok = get_auth_tok()
 else:
-    print("You are not root! Exiting.")
+    auth_tok = None
 
-if DEBUG:
+# create tokens for users
+create_default_tokens(args.realm,
+                      auth_token=auth_tok, username=args.username,
+                      userinfo_key=args.userinfo_key,
+                      userinfo_value=args.userinfo_value,
+                      tokentype=args.tokentype)
+
+
+if TRACK_TIME:
     stop = timeit.default_timer()
-    log.info("auto-enrollment script runtime: {0:.2f} s".format(stop - start))
+    log.debug("auto-enrollment script runtime: {0:.2f} s".format(stop - start))
