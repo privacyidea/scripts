@@ -62,7 +62,7 @@ ADD_PARAMS = {"sms": {"dynamic_phone": True},
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-log = logging.getLogger("privacyidea.scripts.create_primary_token")
+log = logging.getLogger("privacyidea.scripts.create-default-tokens")
 
 
 def get_auth_tok():
