@@ -22,9 +22,13 @@ It can also be used to enroll the primary tokens for a specific user with
 the additional argument --user <USER>.
 
 With the option --tokentype <TYPE> the hard-coded PRIMARY_TOKEN_TYPES can 
-be overwridden.  You can add a userinfo condition to enroll primary tokens 
+be overwritten.  You can add a userinfo condition to enroll primary tokens 
 only for users which have the userinfo specified by --userinfo-key <KEY> 
 and --userinfo-value <VAL>.
+
+With the parameter --check-existing-tokentype <TYPE> you can choose,
+that the new token will only be created, if the user does not yet
+has a token of this given type.
 
 The tokens are either enrolled via Lib function (faster) or use the REST API
 to enroll the token which also triggers event handlers configured in privacyIDEA. 
@@ -46,7 +50,7 @@ most cases it must be run on the privacyIDEA server.
 """
 
 # the URL of the privacyIDEA server (defaults to https://localhost/)
-# URL = 'https://localhost:5000/'
+URL = 'https://localhost/'
 # verify the SSL certificate of the privacyIDEA server (defaults to False)
 # VERIFY = True
 # use Lib or API layer to init token (triggers event handler)
@@ -101,7 +105,7 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
 
 def create_default_tokens(realm, auth_token=None, username=None,
                           userinfo_key=None, userinfo_value=None,
-                          tokentype=None):
+                          tokentype=None, check_existing_tokentype=None):
     """
     This method creates the default tokens for the users in the given realm.
     You may add a userinfo condition.
@@ -131,7 +135,7 @@ def create_default_tokens(realm, auth_token=None, username=None,
                 if check_userinfo(user_obj, userinfo_key, userinfo_value):
                     for type in tokentypes:
                         serial = None
-                        tokens = get_tokens(user=user_obj, tokentype=type)
+                        tokens = get_tokens(user=user_obj, tokentype=check_existing_tokentype)
                         # if no token of the specified type exists, create one
                         # create sms token only if mobile number exists
                         if len(tokens) == 0:
@@ -173,7 +177,8 @@ def create_default_tokens(realm, auth_token=None, username=None,
                         else:
                             log.info("User {0!s} in realm {1!s} already has a {2!s} token. "
                                      "Not creating another one.".format(user_obj.login,
-                                                                        user_obj.realm, type))
+                                                                        user_obj.realm,
+                                                                        check_existing_tokentype or "**any**"))
             else:
                 log.info('User {0!s} does not exists in any resolver in '
                          'realm {1!s}'.format(user_obj.login, user_obj.realm))
@@ -195,6 +200,10 @@ parser.add_argument('--userinfo-value', dest='userinfo_value', required=False,
 parser.add_argument('--tokentype', dest='tokentype', required=False,
                     help="Create tokens of this type. The default type "
                          "is set in the script by the variable PRIMARY_TOKEN_TYPES")
+parser.add_argument('--check-existing-tokentype', dest='check_existing_tokentype',
+                    help="If this tokentype is given, the new token will only be created, if the user "
+                         "has no token of this given tokentype. If this parameter is not specified, "
+                         "the token will only be created, if the user has no token at all.")
 args = parser.parse_args()
 
 # early exit for usage at endpoints without realm or user context
@@ -215,7 +224,8 @@ create_default_tokens(args.realm,
                       auth_token=auth_tok, username=args.username,
                       userinfo_key=args.userinfo_key,
                       userinfo_value=args.userinfo_value,
-                      tokentype=args.tokentype)
+                      tokentype=args.tokentype,
+                      check_existing_tokentype=args.check_existing_tokentype)
 
 
 if TRACK_TIME:
