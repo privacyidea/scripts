@@ -7,25 +7,26 @@ from privacyidea.app import create_app
 import logging
 
 __doc__ = """
-This scripts removes tokens of a given user except the one given by serial.
-#
+This script removes tokens of a given user except the one given by serial.
+
 This is a script that can be called by the privacyIDEA script handler. It
 is designed to run as a post event handler at /token/init. It will remove
 all tokens of the user but the token, which was just enrolled.
 
 The script can be configured to remove only tokens which share the type
 with the token that was just enrolled. It can act on all tokens or on the
-active ones only.
+active ones only. It can optionally restrict to those which have a 
+specific tokeninfo (e.g. software tokens).
 
 It takes the arguments
 
-   remove-other-tokens.py --user <user> --realm <realm> --serial <token serial>
+   remove-other-user-tokens.py --user <user> --realm <realm> --serial <token serial>
 
 You can place the script in your scripts directory /etc/privacyidea/scripts/
-and use it in the script event handler. It logs with level debug to the
-privacyidea log file.
+and use it in the script event handler. It logs with level info and debug to
+the privacyidea log file.
 
-Adapt it (like the REMOVE_OTHER_TOKENS_PER and ONLY_ACTIVE) to your needs.
+Adapt REMOVE_OTHER_TOKENS_PER, ONLY_ACTIVE and TOKENINFO to your needs.
 
 (c) 2021, Henning Hollermann <henning.hollermann@netknights.it>
 
@@ -47,7 +48,9 @@ Adapt it (like the REMOVE_OTHER_TOKENS_PER and ONLY_ACTIVE) to your needs.
 # "user": remove all tokens of the given user except the one given by serial. This is the default.
 REMOVE_OTHER_TOKENS_PER = "user"
 # set to True to remove only active tokens
-ONLY_ACTIVE = False
+ONLY_ACTIVE = True
+# remove only tokens which have the following tokeninfo
+TOKENINFO = {"tokenkind": "software"}
 
 log = logging.getLogger("privacyidea.scripts.remove-other-tokens")
 
@@ -60,24 +63,26 @@ def remove_other_tokens(serial, username, realm):
         tokentype = token_obj.type if REMOVE_OTHER_TOKENS_PER == "type" else None
         active = True if ONLY_ACTIVE is True else None
         # remove tokens if any
-        for tok in get_tokens(user=user_obj, tokentype=tokentype, active=active):
-             if tok.token.serial and tok.token.serial != serial:
+        for tok in get_tokens(user=user_obj, tokentype=tokentype, active=active,
+                              tokeninfo=TOKENINFO or None):
+            if tok.token.serial and tok.token.serial != serial:
                 remove_token(serial=tok.token.serial)
                 log.debug("- Remove token with serial {0!s}".format(tok.token.serial))
         # check remaining tokens
         remaining_tokens = get_tokens(user=user_obj)
         log.debug("User {0!s}@{1!s} has {2!s} remaining tokens."
-                 "".format(username, realm, len(remaining_tokens)))
+                  "".format(username, realm, len(remaining_tokens)))
         for tok in remaining_tokens:
             log.debug("~ a {0!s} token with serial {1!s}".format(tok.type.upper(),
-                                                                tok.token.serial))
-
+                                                                 tok.token.serial))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--serial', dest='serial', help="The serial of the enrolled token.")
-parser.add_argument('--user', dest='username', help="The username of the user of whom "
-                                                    "other tokens will be removed.")
-parser.add_argument('--realm', dest='realm', help="The realm of the user to act on.")
+parser.add_argument('--serial', required=True, dest='serial',
+                    help="The serial of the enrolled token.")
+parser.add_argument('--user', required=True, dest='username',
+                    help="The username of the user of whom other tokens will be removed.")
+parser.add_argument('--realm', required=True, dest='realm',
+                    help="The realm of the user to act on.")
 args = parser.parse_args()
 
 app = create_app(config_name="production",
@@ -85,6 +90,6 @@ app = create_app(config_name="production",
                  silent=True)
 
 with app.app_context():
-    log.info("Starting script to remove tokens different from {0!s} per {1!s}"
-             "".format(args.serial, REMOVE_OTHER_TOKENS_PER))
+    log.info("Starting script to remove tokens different from {0!s} per {1!s} with tokeninfo {2}"
+             "".format(args.serial, REMOVE_OTHER_TOKENS_PER, TOKENINFO))
     remove_other_tokens(args.serial, args.username, args.realm)
