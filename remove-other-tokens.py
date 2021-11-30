@@ -15,7 +15,7 @@ all tokens of the user but the token, which was just enrolled.
 
 The script can be configured to remove only tokens which share the type
 with the token that was just enrolled. It can act on all tokens or on the
-active ones only. It can optionally restrict to those which have a 
+active ones only. It can optionally restrict to those which have a
 specific tokeninfo (e.g. software tokens).
 
 It takes the arguments
