@@ -52,7 +52,7 @@ ONLY_ACTIVE = True
 # remove only tokens which have the following tokeninfo
 TOKENINFO = {"tokenkind": "software"}
 
-log = logging.getLogger("privacyidea.scripts.remove-other-tokens")
+log = logging.getLogger("privacyidea.scripts.remove-other-user-tokens")
 
 
 def remove_other_tokens(serial, username, realm):
