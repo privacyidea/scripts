@@ -46,10 +46,10 @@ EXAMPLE_CONFIG_FILE = """{
     },
     "MIGRATE": {
         "user": { "find": {"username": "*@example.com", "realm": "RealmA" },
-                  "pattern": "(.*?)@example.com",
+                  "pattern": "^(.*?)@example.com$",
                   "replace": "\\1",
                   "attributes": ['email', 'givenname', 'surname']},
-        "serial": { "pattern": "(.*)",
+        "serial": { "pattern": "^(.*)$",
                     "replace": "\\_new" }
     },
     "ASSIGNMENTS": {
@@ -240,12 +240,10 @@ def migrate(config_obj):
         userlist = get_user_list(param=config_obj.MIGRATE_USER_FIND)
         for user in userlist:
             if re.match(config_obj.MIGRATE_USER_PATTERN, user.get("username")):
-                print(user)
                 new_username = re.sub(config_obj.MIGRATE_USER_PATTERN, config_obj.MIGRATE_USER_REPLACE, user.get("username"))
                 new_user = {"username": new_username,
                             "tokenlist": []}
                 for attr in config_obj.MIGRATE_ATTRIBUTES:
-                    print(attr)
                     new_user[attr] = user.get(attr)
 
                 tokens = get_tokens(user=User(user.get("username"), realm=config_obj.MIGRATE_USER_FIND.get("realm")))
@@ -263,20 +261,30 @@ def migrate(config_obj):
                                        tok["serial"])
             info_list = tok.get("info_list")
             del (tok["info_list"])
-            create_token_from_dict(tok, info_list)
+            toks = get_tokens(serial=tok.get("serial"))
+            if len(toks) > 0:
+                print("New token {0!s} aleady exists.".format(tok.get("serial")))
+            else:
+                create_token_from_dict(tok, info_list)
 
         # create the new users
         for user in new_users:
             tokenlist = user.get("tokenlist")
             del(user["tokenlist"])
-            try:
+
+            ul = get_user_list({"username": user.get("username"),
+                                "realm": config_obj.TO_REALM,
+                                "resolver": config_obj.TO_RESOLVER})
+            if not ul:
                 uid = create_user(config_obj.TO_RESOLVER, user)
                 print("Created user {0!s}".format(uid))
-            except Exception as exx:
-                print("Looks like user {0!s} already existed.".format(user.get("username")))
+            else:
+                print("User already exists!")
+            user_obj = User(login=user.get("username"),
+                            realm=config_obj.TO_REALM,
+                            resolver=config_obj.TO_RESOLVER)
 
             # Assign token
-            user_obj = User(user.get("username"), realm=config_obj.TO_REALM)
             for serial in tokenlist:
                 serial= re.sub(config_obj.MIGRATE_SERIAL_PATTERN,
                                config_obj.MIGRATE_SERIAL_REPLACE,
