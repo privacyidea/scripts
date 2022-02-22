@@ -286,11 +286,14 @@ def migrate(config_obj):
 
             # Assign token
             for serial in tokenlist:
-                serial= re.sub(config_obj.MIGRATE_SERIAL_PATTERN,
+                serial = re.sub(config_obj.MIGRATE_SERIAL_PATTERN,
                                config_obj.MIGRATE_SERIAL_REPLACE,
                                serial)
                 print("Assigning token {0!s} to user {1!s}".format(serial, user_obj))
-                assign_token(serial, user_obj)
+                try:
+                    assign_token(serial, user_obj)
+                except Exception:
+                    print("Error assigning token - probably the token is already assigned.")
 
 
 def usage():
