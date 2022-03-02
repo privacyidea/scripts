@@ -15,7 +15,7 @@ all tokens of the user but the token, which was just enrolled.
 
 The script can be configured to remove only tokens which share the type
 with the token that was just enrolled. It can act on all tokens or on the
-active ones only. It can optionally restrict to those which have a 
+active ones only. It can optionally restrict to those which have a
 specific tokeninfo (e.g. software tokens).
 
 It takes the arguments
@@ -46,16 +46,16 @@ Adapt REMOVE_OTHER_TOKENS_PER, ONLY_ACTIVE and TOKENINFO to your needs.
 
 # "type": remove other tokens of the given user that share the type of the token given by serial.
 # "user": remove all tokens of the given user except the one given by serial. This is the default.
-REMOVE_OTHER_TOKENS_PER = "type"
+REMOVE_OTHER_TOKENS_PER = "user"
 # set to True to remove only active tokens
 ONLY_ACTIVE = True
 # remove only tokens which have the following tokeninfo
 TOKENINFO = {"tokenkind": "software"}
 
-log = logging.getLogger("privacyidea.scripts.remove-other-tokens")
+log = logging.getLogger("privacyidea.scripts.remove-other-user-tokens")
 
 
-def remove_other_user_tokens(serial, username, realm):
+def remove_other_tokens(serial, username, realm):
     user_obj = User(login=username, realm=realm)
     # get the token which was enrolled during the triggering /token/init
     token_obj = get_one_token(serial=serial, user=user_obj)
@@ -92,4 +92,4 @@ app = create_app(config_name="production",
 with app.app_context():
     log.info("Starting script to remove tokens different from {0!s} per {1!s} with tokeninfo {2}"
              "".format(args.serial, REMOVE_OTHER_TOKENS_PER, TOKENINFO))
-    remove_other_user_tokens(args.serial, args.username, args.realm)
+    remove_other_tokens(args.serial, args.username, args.realm)
