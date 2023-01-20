@@ -39,7 +39,9 @@ Adapt it (like the TOKENTYPE and ACTION) to your needs.
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 """
 
-TOKENTYPE_TO_DELETE = "sms"
+# This is a list of tokentypes to delete
+TOKENTYPES_TO_DELETE = ["sms"]
+ACTIVE = True
 ACTION = "disable"
 #ACTION = "delete"
 LOGFILE = "/var/log/privacyidea/disabled-tokens.log"
@@ -47,7 +49,7 @@ ROLLOUT_STATE = None
 #ROLLOUT_STATE = ROLLOUTSTATE.VERIFYPENDING
 
 
-def modify_token(username, realm, ttype):
+def modify_token(username, realm, ttypes):
     app = create_app(config_name="production",
                      config_file="/etc/privacyidea/pi.cfg",
                      silent=True)
@@ -55,18 +57,20 @@ def modify_token(username, realm, ttype):
     with app.app_context():
         user_obj = User(username, realm)
         if user_obj:
-            # Get all active tokens of this types from this user
-            toks = get_tokens(user=user_obj, tokentype=ttype, active=True, rollout_state=ROLLOUT_STATE)
-            # Delete all SMS tokens.
-            for tok_obj in toks:
-                serial = tok_obj.token.serial
-                if ACTION == "delete":
-                    tok_obj.delete_token()
-                else:
-                    enable_token(serial, False)
-                with open(LOGFILE, "a") as f:
-                    f.write(u"{0!s}, {1!s}, {2!s}, {3!s}, {4!s}\n".format(datetime.datetime.now().strftime("%Y-%m-%dT%H:%M"),
-                                                            args.username, args.realm, ACTION, serial))
+            for ttype in ttypes:
+                # Get all active tokens of this types from this user
+                toks = get_tokens(user=user_obj, tokentype=ttype, active=ACTIVE, rollout_state=ROLLOUT_STATE)
+                # Delete all SMS tokens.
+                for tok_obj in toks:
+                    serial = tok_obj.token.serial
+                    if ACTION == "delete":
+                        tok_obj.delete_token()
+                    else:
+                        enable_token(serial, False)
+                    with open(LOGFILE, "a") as f:
+                        f.write(u"{0!s}, {1!s}, {2!s}, {3!s}, {4!s}\n".format(
+                            datetime.datetime.now().strftime("%Y-%m-%dT%H:%M"),
+                            args.username, args.realm, ACTION, serial))
 
 
 parser = argparse.ArgumentParser()
@@ -74,5 +78,5 @@ parser.add_argument('--user', dest='username')
 parser.add_argument('--realm', dest='realm')
 args = parser.parse_args()
 
-modify_token(args.username, args.realm, TOKENTYPE_TO_DELETE)
+modify_token(args.username, args.realm, TOKENTYPES_TO_DELETE)
 
