@@ -1,6 +1,7 @@
 #!/opt/privacyidea/bin/python
 from flask import Flask
 from privacyidea.lib.token import get_tokens, enable_token
+from privacyidea.lib.tokenclass import ROLLOUTSTATE
 from privacyidea.lib.user import User
 import argparse
 from flask_sqlalchemy import SQLAlchemy
@@ -42,6 +43,8 @@ TOKENTYPE_TO_DELETE = "sms"
 ACTION = "disable"
 #ACTION = "delete"
 LOGFILE = "/var/log/privacyidea/disabled-tokens.log"
+ROLLOUT_STATE = None
+#ROLLOUT_STATE = ROLLOUTSTATE.VERIFYPENDING
 
 
 def modify_token(username, realm, ttype):
@@ -53,7 +56,7 @@ def modify_token(username, realm, ttype):
         user_obj = User(username, realm)
         if user_obj:
             # Get all active tokens of this types from this user
-            toks = get_tokens(user=user_obj, tokentype=ttype, active=True)
+            toks = get_tokens(user=user_obj, tokentype=ttype, active=True, rollout_state=ROLLOUT_STATE)
             # Delete all SMS tokens.
             for tok_obj in toks:
                 serial = tok_obj.token.serial
