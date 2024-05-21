@@ -1,9 +1,5 @@
 #!/opt/privacyidea/bin/python
 
-# This script is used to check TLS certificates for web servers and LDAP servers, 
-#as well as CA certificates. It allows you to check the validity of certificates 
-#and issue warnings if a certificate is about to expire. The script can optionally create log files.
-
 import argparse
 import json
 import subprocess
@@ -13,6 +9,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import padding
 import logging
+
 
 def setup_logging(log_path=None):
     """
@@ -24,6 +21,7 @@ def setup_logging(log_path=None):
         logging.basicConfig(filename=log_path, level=logging.INFO, format=log_format)
     else:
         logging.basicConfig(level=logging.INFO, format=log_format)
+
 
 def log_message(message, error=False, warning=False):
     """
@@ -39,6 +37,7 @@ def log_message(message, error=False, warning=False):
     else:
         logging.info(message)
 
+
 def find_config_files(directory, file_patterns):
     """
     Find configuration files in a directory that match specified patterns.
@@ -50,6 +49,7 @@ def find_config_files(directory, file_patterns):
         for file in files:
             if any(file.endswith(pattern) for pattern in file_patterns):
                 yield os.path.join(root, file)
+
 
 def extract_certificate_path(config_path):
     """
@@ -68,6 +68,7 @@ def extract_certificate_path(config_path):
         log_message(f"Error reading {config_path}: {str(e)}", error=True)
     return cert_path
 
+
 def load_certificates(cert_path, ca_path=None):
     """
     Load certificates from specified paths.
@@ -80,16 +81,15 @@ def load_certificates(cert_path, ca_path=None):
         if cert_path:
             with open(cert_path, 'rb') as file:
                 cert = x509.load_pem_x509_certificate(file.read(), default_backend())
-        
         ca_cert = None
         if ca_path:
             with open(ca_path, 'rb') as file:
                 ca_cert = x509.load_pem_x509_certificate(file.read(), default_backend())
-        
         return cert, ca_cert
     except Exception as e:
         log_message(f"Failed to load certificates from {cert_path} or {ca_path}: {str(e)}", error=True)
         return None, None
+
 
 def check_certificate_expiry(cert, days, cert_description):
     """
@@ -103,7 +103,9 @@ def check_certificate_expiry(cert, days, cert_description):
         message = f'{cert_description} certificate is valid for {days_to_expire} more days.'
         log_message(message)
         if days_to_expire <= days:
-            log_message(f"Warning: The {cert_description} certificate will expire in {days_to_expire} days or less. Please renew it timely.", warning=True)
+            log_message(f"Warning: The {cert_description} certificate will expire in {days_to_expire} days or less."
+                        f" Please renew it timely.", warning=True)
+
 
 def get_certificate_from_server(server_address, port, starttls=False):
     """
@@ -115,27 +117,33 @@ def get_certificate_from_server(server_address, port, starttls=False):
     """
     try:
         if starttls:
-            cmd = f"echo | openssl s_client -connect {server_address}:{port} -starttls ldap 2>/dev/null | openssl x509"
+            cmd = (f"echo | openssl s_client -connect {server_address}:{port} "
+                   f"-starttls ldap 2>/dev/null | openssl x509")
         else:
-            cmd = f"echo | openssl s_client -connect {server_address}:{port} 2>/dev/null | openssl x509"
+            cmd = (f"echo | openssl s_client -connect {server_address}:{port} "
+                   f"2>/dev/null | openssl x509")
         cert_pem = subprocess.check_output(cmd, shell=True)
         cert = x509.load_pem_x509_certificate(cert_pem, default_backend())
         return cert
     except subprocess.CalledProcessError as e:
         # If failed to retrieve certificate, try checking connection
-        log_message(f"Failed to retrieve certificate from {server_address}:{port}. Trying connection check...", warning=True)
+        log_message(f"Failed to retrieve certificate from {server_address}:{port}. "
+                    f"Trying connection check...", warning=True)
         try:
             cmd = f"echo | openssl s_client -connect {server_address}:{port} 2>/dev/null"
             connection_output = subprocess.check_output(cmd, shell=True).decode('utf-8')
             if "CONNECTED(00000003)" in connection_output:
-                log_message(f"Connection to {server_address}:{port} successful, but no certificate found.", warning=True)
+                log_message(f"Connection to {server_address}:{port} successful, "
+                            f"but no certificate found.", warning=True)
                 return None
             else:
-                log_message(f"Failed to establish connection to {server_address}:{port}.", error=True)
+                log_message(f"Failed to establish connection to "
+                            f"{server_address}:{port}.", error=True)
                 return None
         except subprocess.CalledProcessError as ce:
             log_message(f"Failed to connect to {server_address}:{port}: {str(ce)}", error=True)
             return None
+
 
 def verify_certificate_signature(client_cert, ca_cert, cert_description):
     """
@@ -149,24 +157,29 @@ def verify_certificate_signature(client_cert, ca_cert, cert_description):
             client_cert.signature,
             client_cert.tbs_certificate_bytes,
             padding.PKCS1v15(),
-            client_cert.signature_hash_algorithm
-        )
+            client_cert.signature_hash_algorithm)
         log_message(f"The {cert_description} certificate is validly signed by its issuer.")
     except Exception as e:
-        log_message(f"Verification failed: The {cert_description} certificate is not properly signed by its issuer: {str(e)}", error=True)
+        log_message(f"Verification failed: The {cert_description} certificate "
+                    f"is not properly signed by its issuer: {str(e)}", error=True)
+
 
 def main():
     """
     Main function to check TLS certificates and issue warnings if they are about to expire.
     """
-    parser = argparse.ArgumentParser(description='Check TLS certificates and issue a warning if expiration is imminent.')
-    parser.add_argument('--days', type=int, required=True, help='Number of days before expiration to issue a warning.')
+    parser = argparse.ArgumentParser(description='Check TLS certificates and issue a warning '
+                                                 'if expiration is imminent.')
+    parser.add_argument('--days', type=int, required=True, help='Number of days before expiration '
+                                                                'to issue a warning.')
     parser.add_argument('--config-dir', type=str, help='Directory to search for web server config files.')
     parser.add_argument('--web', action='store_true', help='Check the web server certificate.')
     parser.add_argument('--ldap', action='store_true', help='Check the LDAP server certificate.')
     parser.add_argument('--ca', action='store_true', help='Check the CA issuer certificate.')
-    parser.add_argument('--all', action='store_true', help='Check all web, LDAP, and CA issuer certificates.')
-    parser.add_argument('--logging', type=str, help='Path to the log file. If not set, logs will be printed to stdout.')
+    parser.add_argument('--all', action='store_true', help='Check all web, LDAP, '
+                                                           'and CA issuer certificates.')
+    parser.add_argument('--logging', type=str, help='Path to the log file. '
+                                                    'If not set, logs will be printed to stdout.')
     args = parser.parse_args()
 
     # Setup logging based on the provided argument
@@ -215,7 +228,8 @@ def main():
                         if cert:
                             check_certificate_expiry(cert, args.days, f'LDAP server from resolver "{resolver_name}"')
                         else:
-                            log_message(f"No certificate found for LDAP server from resolver \"{resolver_name}\" at {server_address}:{port}", warning=True)
+                            log_message(f"No certificate found for LDAP server "
+                                        f"from resolver \"{resolver_name}\" at {server_address}:{port}", warning=True)
                         
                         # Check CA certificate if TLS_VERIFY is set
                         if resolver_data["data"].get("TLS_VERIFY", "").lower() == "true":
@@ -252,6 +266,7 @@ def main():
             log_message("Failed to parse JSON from output.", error=True)
         except Exception as e:
             log_message(f"An unexpected error occurred: {str(e)}", error=True)
+
 
 if __name__ == "__main__":
     main()
