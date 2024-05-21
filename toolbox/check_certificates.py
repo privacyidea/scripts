@@ -87,7 +87,8 @@ def load_certificates(cert_path, ca_path=None):
                 ca_cert = x509.load_pem_x509_certificate(file.read(), default_backend())
         return cert, ca_cert
     except Exception as e:
-        log_message(f"Failed to load certificates from {cert_path} or {ca_path}: {str(e)}", error=True)
+        log_message(f"Failed to load certificates from "
+                    f"{cert_path} or {ca_path}: {str(e)}", error=True)
         return None, None
 
 
@@ -103,8 +104,8 @@ def check_certificate_expiry(cert, days, cert_description):
         message = f'{cert_description} certificate is valid for {days_to_expire} more days.'
         log_message(message)
         if days_to_expire <= days:
-            log_message(f"Warning: The {cert_description} certificate will expire in {days_to_expire} days or less."
-                        f" Please renew it timely.", warning=True)
+            log_message(f"Warning: The {cert_description} certificate will expire in "
+                        f"{days_to_expire} days or less. Please renew it timely.", warning=True)
 
 
 def get_certificate_from_server(server_address, port, starttls=False):
@@ -172,7 +173,8 @@ def main():
                                                  'if expiration is imminent.')
     parser.add_argument('--days', type=int, required=True, help='Number of days before expiration '
                                                                 'to issue a warning.')
-    parser.add_argument('--config-dir', type=str, help='Directory to search for web server config files.')
+    parser.add_argument('--config-dir', type=str, help='Directory to search '
+                                                       'for web server config files.')
     parser.add_argument('--web', action='store_true', help='Check the web server certificate.')
     parser.add_argument('--ldap', action='store_true', help='Check the LDAP server certificate.')
     parser.add_argument('--ca', action='store_true', help='Check the CA issuer certificate.')
@@ -186,7 +188,6 @@ def main():
     setup_logging(args.logging)
 
     # Enable CA checks if --all is specified
-    #ca_checks = args.ca or args.all
     ca_checks = args.ca
 
     # Web server certificates check
@@ -195,11 +196,9 @@ def main():
         config_dirs = {
             "apache": "/etc/apache2/sites-enabled",
             "httpd": "/etc/httpd/conf.d",
-            "nginx": "/etc/nginx/sites-enabled"
-        }
+            "nginx": "/etc/nginx/sites-enabled"}
         if args.config_dir:
             config_dirs = {"custom": args.config_dir}
-        
         for name, directory in config_dirs.items():
             config_paths = list(find_config_files(directory, file_patterns))
             for path in config_paths:
@@ -222,24 +221,28 @@ def main():
                         scheme, server_info = uri_parts
                         server_info = server_info.split(":")
                         server_address = server_info[0]
-                        port = server_info[1] if len(server_info) == 2 else (636 if scheme == "ldaps" else 389)
+                        port = server_info[1] if (len(server_info) ==
+                                                  2) else (636 if scheme == "ldaps" else 389)
                         starttls = scheme == "ldap"
                         cert = get_certificate_from_server(server_address, port, starttls)
                         if cert:
-                            check_certificate_expiry(cert, args.days, f'LDAP server from resolver "{resolver_name}"')
+                            check_certificate_expiry(cert, args.days, f'LDAP server '
+                                                                      f'from resolver "{resolver_name}"')
                         else:
                             log_message(f"No certificate found for LDAP server "
-                                        f"from resolver \"{resolver_name}\" at {server_address}:{port}", warning=True)
-                        
+                                        f"from resolver \"{resolver_name}\" "
+                                        f"at {server_address}:{port}", warning=True)
                         # Check CA certificate if TLS_VERIFY is set
                         if resolver_data["data"].get("TLS_VERIFY", "").lower() == "true":
                             ca_path = resolver_data["data"].get("TLS_CA_FILE")
                             if ca_path:
                                 _, ca_cert = load_certificates(cert_path=None, ca_path=ca_path)
                                 if ca_cert:
-                                    check_certificate_expiry(ca_cert, args.days, f'CA issuer from resolver "{resolver_name}"')
+                                    check_certificate_expiry(ca_cert, args.days,
+                                                             f'CA issuer from resolver "{resolver_name}"')
                                     if cert and ca_cert:
-                                        verify_certificate_signature(cert, ca_cert, f'LDAP server {resolver_name}')
+                                        verify_certificate_signature(cert, ca_cert,
+                                                                     f'LDAP server {resolver_name}')
         except subprocess.CalledProcessError as e:
             log_message(f"Failed to execute command: {str(e)}", error=True)
         except json.JSONDecodeError:
@@ -259,7 +262,8 @@ def main():
                     if ca_path:
                         _, ca_cert = load_certificates(cert_path=None, ca_path=ca_path)
                         if ca_cert:
-                            check_certificate_expiry(ca_cert, args.days, f'CA issuer from resolver "{resolver_name}"')
+                            check_certificate_expiry(ca_cert, args.days,
+                                                     f'CA issuer from resolver "{resolver_name}"')
         except subprocess.CalledProcessError as e:
             log_message(f"Failed to execute command: {str(e)}", error=True)
         except json.JSONDecodeError:
@@ -270,4 +274,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
