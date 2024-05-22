@@ -64,15 +64,23 @@ When the script runs, the output may look like this:
 
 2024-05-22 09:54:05,621 - INFO - Web server certificate is valid for 1333 more days.
 
-2024-05-22 09:54:07,088 - INFO - LDAP server from resolver "ad" certificate is valid for 123 more days.
-2024-05-22 09:54:07,089 - INFO - CA issuer from resolver "ad" certificate is valid for 614 more days.
-2024-05-22 09:54:07,092 - INFO - The LDAP server ad certificate is validly signed by its issuer.
-2024-05-22 09:54:07,175 - INFO - LDAP server from resolver "ucs07" certificate is valid for 1369 more days.
-2024-05-22 09:54:07,249 - INFO - LDAP server from resolver "ucs05" certificate is valid for 878 more days.
+2024-05-22 09:54:07,088 - INFO - LDAP server from resolver "ad" certificate
+ is valid for 123 more days.
+2024-05-22 09:54:07,089 - INFO - CA issuer from resolver "ad" certificate
+ is valid for 614 more days.
+2024-05-22 09:54:07,092 - INFO - The LDAP server ad certificate
+ is validly signed by its issuer.
+2024-05-22 09:54:07,175 - INFO - LDAP server from resolver "ucs07" certificate
+ is valid for 1369 more days.
+2024-05-22 09:54:07,249 - INFO - LDAP server from resolver "ucs05" certificate
+ is valid for 878 more days.
 
-2024-05-17 13:39:15,315 - INFO - CA issuer from resolver "ad" certificate is valid for 619 more days.
-2024-05-17 13:39:15,316 - INFO - CA issuer from resolver "ucs07" certificate is valid for 1373 more days.
-2024-05-17 13:39:15,316 - INFO - CA issuer from resolver "ucs05" certificate is valid for 883 more days.
+2024-05-17 13:39:15,315 - INFO - CA issuer from resolver "ad" certificate
+ is valid for 619 more days.
+2024-05-17 13:39:15,316 - INFO - CA issuer from resolver "ucs07" certificate
+ is valid for 1373 more days.
+2024-05-17 13:39:15,316 - INFO - CA issuer from resolver "ucs05" certificate is
+ valid for 883 more days.
 
 
 Error Handling:
@@ -84,10 +92,13 @@ problems reading configuration files, and outputs corresponding error messages:
 unable to load certificate
 140293905839424:error:0909006C:PEM routines:get_name:no start line:../crypto/pem/pem_lib.c:745:
 Expecting: TRUSTED CERTIFICATE
-2024-05-22 09:54:06,976 - WARNING - Failed to retrieve certificate from 10.10.10.10:389. Trying connection check...
+2024-05-22 09:54:06,976 - WARNING - Failed to retrieve certificate from 10.10.10.10:389.
+ Trying connection check...
 2024-05-22 09:54:07,021 - ERROR - Failed to connect to 10.10.10.10:389:
-Command 'echo | openssl s_client -connect 10.10.10.10:389 2>/dev/null' returned non-zero exit status 1.
-2024-05-22 09:54:07,022 - WARNING - No certificate found for LDAP server from resolver "ldap_test" at 10.10.10.10:389
+ Command 'echo | openssl s_client -connect 10.10.10.10:389 2>/dev/null' 
+ returned non-zero exit status 1.
+2024-05-22 09:54:07,022 - WARNING - No certificate found for LDAP server from resolver
+ "ldap_test" at 10.10.10.10:389
 
 
 Summary:
@@ -197,8 +208,9 @@ def check_certificate_expiry(cert, days, cert_description):
         log_message(message)
         if days_to_expire <= days:
             log_message(
-                f"Warning: The {cert_description} certificate will expire in {days_to_expire} days or less. "
-                "Please renew it timely.",
+                f"Warning: The {cert_description} "
+                f"certificate will expire in {days_to_expire} days or less. "
+                f"Please renew it timely.",
                 warning=True)
 
 
@@ -216,13 +228,15 @@ def get_certificate_from_server(server_address, port, starttls=False):
                 f"echo | openssl s_client -connect {server_address}:{port} -starttls ldap "
                 "2>/dev/null | openssl x509")
         else:
-            cmd = f"echo | openssl s_client -connect {server_address}:{port} 2>/dev/null | openssl x509"
+            cmd = (f"echo | openssl s_client -connect {server_address}:{port} "
+                   f"2>/dev/null | openssl x509")
         cert_pem = subprocess.check_output(cmd, shell=True)
         cert = x509.load_pem_x509_certificate(cert_pem, default_backend())
         return cert
     except subprocess.CalledProcessError:
         log_message(
-            f"Failed to retrieve certificate from {server_address}:{port}. Trying connection check...",
+            f"Failed to retrieve certificate from {server_address}:{port}."
+            f" Trying connection check...",
             warning=True)
         try:
             cmd = f"echo | openssl s_client -connect {server_address}:{port} 2>/dev/null"
@@ -233,7 +247,8 @@ def get_certificate_from_server(server_address, port, starttls=False):
                     warning=True)
                 return None
             else:
-                log_message(f"Failed to establish connection to {server_address}:{port}.", error=True)
+                log_message(f"Failed to establish connection to "
+                            f"{server_address}:{port}.", error=True)
                 return None
         except subprocess.CalledProcessError as ce:
             log_message(f"Failed to connect to {server_address}:{port}: {str(ce)}", error=True)
@@ -256,7 +271,8 @@ def verify_certificate_signature(client_cert, ca_cert, cert_description):
         log_message(f"The {cert_description} certificate is validly signed by its issuer.")
     except Exception as e:
         log_message(
-            f"Verification failed: The {cert_description} certificate is not properly signed by its issuer: "
+            f"Verification failed: The {cert_description} "
+            f"certificate is not properly signed by its issuer: "
             f"{str(e)}",
             error=True)
 
@@ -266,9 +282,9 @@ def main():
     Main function to check TLS certificates and issue warnings if they are about to expire.
     """
     parser = argparse.ArgumentParser(
-        description='Check TLS certificates and issue a warning if expiration is imminent.')
+        description='Check certificates and issue a warning if expiration is imminent.')
     parser.add_argument(
-        '--days', type=int, required=True, help='Number of days before expiration to issue a warning.')
+        '--days', type=int, required=True, help='No. of days before expiration to issue a warning.')
     parser.add_argument(
         '--config-dir', type=str, help='Directory to search for web server config files.')
     parser.add_argument(
@@ -280,7 +296,7 @@ def main():
     parser.add_argument(
         '--all', action='store_true', help='Check all web, LDAP, and CA issuer certificates.')
     parser.add_argument(
-        '--logging', type=str, help='Path to the log file. If not set, logs will be printed to stdout.')
+        '--logging', type=str, help='If log-path not set, logs will be printed to stdout.')
     args = parser.parse_args()
 
     # Setup logging based on the provided argument
@@ -321,7 +337,8 @@ def main():
                         scheme, server_info = uri_parts
                         server_info = server_info.split(":")
                         server_address = server_info[0]
-                        port = server_info[1] if len(server_info) == 2 else (636 if scheme == "ldaps" else 389)
+                        port = server_info[1] if len(server_info) == 2 \
+                            else (636 if scheme == "ldaps" else 389)
                         starttls = scheme == "ldap"
                         cert = get_certificate_from_server(server_address, port, starttls)
                         if cert:
@@ -329,7 +346,8 @@ def main():
                                 cert, args.days, f'LDAP server from resolver "{resolver_name}"')
                         else:
                             log_message(
-                                f"No certificate found for LDAP server from resolver \"{resolver_name}\" at "
+                                f"No certificate found for LDAP server from resolver "
+                                f"\"{resolver_name}\" at "
                                 f"{server_address}:{port}", warning=True)
                         if resolver_data["data"].get("TLS_VERIFY", "").lower() == "true":
                             ca_path = resolver_data["data"].get("TLS_CA_FILE")
@@ -337,7 +355,8 @@ def main():
                                 _, ca_cert = load_certificates(cert_path=None, ca_path=ca_path)
                                 if ca_cert:
                                     check_certificate_expiry(
-                                        ca_cert, args.days, f'CA issuer from resolver "{resolver_name}"')
+                                        ca_cert, args.days, f'CA issuer from resolver'
+                                                            f' "{resolver_name}"')
                                     if cert and ca_cert:
                                         verify_certificate_signature(
                                             cert, ca_cert, f'LDAP server {resolver_name}')
