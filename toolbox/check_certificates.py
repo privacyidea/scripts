@@ -95,7 +95,7 @@ Expecting: TRUSTED CERTIFICATE
 2024-05-22 09:54:06,976 - WARNING - Failed to retrieve certificate from 10.10.10.10:389.
  Trying connection check...
 2024-05-22 09:54:07,021 - ERROR - Failed to connect to 10.10.10.10:389:
- Command 'echo | openssl s_client -connect 10.10.10.10:389 2>/dev/null' 
+ Command 'echo | openssl s_client -connect 10.10.10.10:389 2>/dev/null'
  returned non-zero exit status 1.
 2024-05-22 09:54:07,022 - WARNING - No certificate found for LDAP server from resolver
  "ldap_test" at 10.10.10.10:389
@@ -390,4 +390,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
