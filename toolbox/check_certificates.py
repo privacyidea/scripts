@@ -1,14 +1,5 @@
 #!/opt/privacyidea/bin/python
 
-import argparse
-import json
-import subprocess
-import os
-from datetime import datetime
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import padding
-import logging
 
 __doc__ = """
 Documentation of the Certificate Check Script
@@ -27,7 +18,8 @@ and supports several arguments to configure the certificate checks.
 
 Command Line Arguments:
 
-- `--days`: (required) Number of days before expiration to issue a warning.
+- `--days`: (optional) Number of days before expiration to issue a warning.
+- `--days`: If not set, it will use 30 days as default.
 - `--config-dir`: Directory to search for web server configuration files.
 - `--web`: Checks the web server certificate.
 - `--ldap`: Checks the LDAP server certificate and corresponding CA certificate.
@@ -37,7 +29,7 @@ Command Line Arguments:
 
 Example Invocations:
 
-1. Check all certificates and log to a file (--all include this arguments: --web --ldap --ca):
+1. Check all certificates and log to a file (--all include this arguments: --web --ldap):
    python check_certificates.py --days 30 --all --logging /path/to/logfile.log
 
 2. Check only web server certificates and output to console:
@@ -46,15 +38,12 @@ Example Invocations:
 3. Check LDAP server certificates and log to a file:
    python check_certificates.py --days 30 --ldap --logging /path/to/logfile.log
 
-4. Check CA certificates and output to console:
-   python check_certificates.py --days 30 --ca
-
 
 Example for stdout or logging:
 
-1. check_certificates.py --days 30 --all 2>> /var/log/privacyidea/all_certificates.log
+1. check_certificates.py --days 30 --all 2>> /var/log/privacyidea/custom.log
 or
-2. check_certificates.py --days 30 --all --logging /var/log/privacyidea/all_certificates.log
+2. check_certificates.py --days 120 --all --logging /var/log/privacyidea/custom.log
 
 
 Sample Output:
@@ -108,7 +97,6 @@ certificates need to be renewed.
 By supporting log files and various operating modes,
 it can be flexibly integrated into different monitoring and maintenance processes.
 """
-#!/opt/privacyidea/bin/python
 
 import argparse
 import json
@@ -125,6 +113,7 @@ import re
 def setup_logging(log_path=None):
     """
     Set up logging to file if log_path is specified, otherwise log to console.
+
     :param log_path: The path to the log file.
     """
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -138,6 +127,7 @@ def setup_logging(log_path=None):
 def log_message(message, error=False, warning=False):
     """
     Log a message to both the console and a log file.
+
     :param message: The message to log.
     :param error: If True, log the message as an error.
     :param warning: If True, log the message as a warning.
@@ -153,6 +143,7 @@ def log_message(message, error=False, warning=False):
 def find_config_files(directory, file_patterns):
     """
     Find configuration files in a directory that match specified patterns.
+
     :param directory: The directory to search in.
     :param file_patterns: A list of file patterns to match.
     :return: A generator yielding paths to the matching files.
@@ -166,6 +157,7 @@ def find_config_files(directory, file_patterns):
 def extract_nginx_certificate_paths(config_path):
     """
     Extract the certificate paths from an Nginx configuration file.
+
     :param config_path: The path to the configuration file.
     :return: A list of extracted certificate paths.
     """
@@ -183,6 +175,7 @@ def extract_nginx_certificate_paths(config_path):
 def extract_apache_certificate_path(config_path):
     """
     Extract the certificate path from an Apache configuration file.
+
     :param config_path: The path to the configuration file.
     :return: The extracted certificate path, or None if not found.
     """
@@ -201,6 +194,7 @@ def extract_apache_certificate_path(config_path):
 def load_certificates(cert_path, ca_path=None):
     """
     Load certificates from specified paths.
+
     :param cert_path: The path to the certificate file.
     :param ca_path: The path to the CA certificate file (optional).
     :return: A tuple of (certificate, CA certificate).
@@ -226,6 +220,7 @@ def load_certificates(cert_path, ca_path=None):
 def check_certificate_expiry(cert, days, cert_description):
     """
     Check if a certificate will expire within a specified number of days.
+
     :param cert: The certificate to check.
     :param days: The number of days to check for expiry.
     :param cert_description: A description of the certificate.
@@ -245,6 +240,7 @@ def check_certificate_expiry(cert, days, cert_description):
 def get_certificate_from_server(server_address, port, starttls=False):
     """
     Retrieve the server certificate using openssl.
+
     :param server_address: The address of the server.
     :param port: The port to connect to.
     :param starttls: Whether to use STARTTLS for LDAP connections.
@@ -286,6 +282,7 @@ def get_certificate_from_server(server_address, port, starttls=False):
 def verify_certificate_signature(client_cert, ca_cert, cert_description):
     """
     Verify if the client certificate is signed by the CA certificate.
+
     :param client_cert: The client certificate to verify.
     :param ca_cert: The CA certificate to use for verification.
     :param cert_description: A description of the certificate.
