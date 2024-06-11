@@ -30,8 +30,7 @@ Command Line Arguments:
 - `--days`: (required) Number of days before expiration to issue a warning.
 - `--config-dir`: Directory to search for web server configuration files.
 - `--web`: Checks the web server certificate.
-- `--ldap`: Checks the LDAP server certificate.
-- `--ca`: Checks the CA certificate.
+- `--ldap`: Checks the LDAP server certificate and corresponding CA certificate.
 - `--all`: Checks all web server, LDAP server, and CA certificates.
 - `--logging`: Path to the log file. If not set, logs will be printed to stdout.
 
@@ -53,7 +52,7 @@ Example Invocations:
 
 Example for stdout or logging:
 
-1. check_certificates.py --days 30 --all 2> /var/log/privacyidea/all_certificates.log
+1. check_certificates.py --days 30 --all 2>> /var/log/privacyidea/all_certificates.log
 or
 2. check_certificates.py --days 30 --all --logging /var/log/privacyidea/all_certificates.log
 
@@ -109,6 +108,18 @@ certificates need to be renewed.
 By supporting log files and various operating modes,
 it can be flexibly integrated into different monitoring and maintenance processes.
 """
+#!/opt/privacyidea/bin/python
+
+import argparse
+import json
+import subprocess
+import os
+from datetime import datetime
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import padding
+import logging
+import re
 
 
 def setup_logging(log_path=None):
@@ -146,15 +157,32 @@ def find_config_files(directory, file_patterns):
     :param file_patterns: A list of file patterns to match.
     :return: A generator yielding paths to the matching files.
     """
-    for root, dirs, files in os.walk(directory):
+    for root, _, files in os.walk(directory):
         for file in files:
-            if any(file.endswith(pattern) for pattern in file_patterns):
+            if any(file.endswith(pattern) for pattern in file_patterns) or not os.path.splitext(file)[1]:
                 yield os.path.join(root, file)
 
 
-def extract_certificate_path(config_path):
+def extract_nginx_certificate_paths(config_path):
     """
-    Extract the certificate path from a configuration file.
+    Extract the certificate paths from an Nginx configuration file.
+    :param config_path: The path to the configuration file.
+    :return: A list of extracted certificate paths.
+    """
+    cert_paths = []
+    try:
+        with open(config_path, 'r') as file:
+            content = file.read()
+            cert_matches = re.findall(r'ssl_certificate\s+(\S+);', content)
+            cert_paths.extend(cert_matches)
+    except Exception as e:
+        log_message(f"Error reading {config_path}: {e}", error=True)
+    return cert_paths
+
+
+def extract_apache_certificate_path(config_path):
+    """
+    Extract the certificate path from an Apache configuration file.
     :param config_path: The path to the configuration file.
     :return: The extracted certificate path, or None if not found.
     """
@@ -166,7 +194,7 @@ def extract_certificate_path(config_path):
                     cert_path = line.split()[-1].strip()
                     break
     except Exception as e:
-        log_message(f"Error reading {config_path}: {str(e)}", error=True)
+        log_message(f"Error reading {config_path}: {e}", error=True)
     return cert_path
 
 
@@ -191,7 +219,7 @@ def load_certificates(cert_path, ca_path=None):
         return cert, ca_cert
     except Exception as e:
         log_message(
-            f"Failed to load certificates from {cert_path} or {ca_path}: {str(e)}", error=True)
+            f"Failed to load certificates from {cert_path} or {ca_path}: {e}", error=True)
         return None, None
 
 
@@ -251,7 +279,7 @@ def get_certificate_from_server(server_address, port, starttls=False):
                             f"{server_address}:{port}.", error=True)
                 return None
         except subprocess.CalledProcessError as ce:
-            log_message(f"Failed to connect to {server_address}:{port}: {str(ce)}", error=True)
+            log_message(f"Failed to connect to {server_address}:{port}: {ce}", error=True)
             return None
 
 
@@ -273,7 +301,7 @@ def verify_certificate_signature(client_cert, ca_cert, cert_description):
         log_message(
             f"Verification failed: The {cert_description} "
             f"certificate is not properly signed by its issuer: "
-            f"{str(e)}",
+            f"{e}",
             error=True)
 
 
@@ -284,15 +312,13 @@ def main():
     parser = argparse.ArgumentParser(
         description='Check certificates and issue a warning if expiration is imminent.')
     parser.add_argument(
-        '--days', type=int, required=True, help='No. of days before expiration to issue a warning.')
+        '--days', type=int, default=30, help='No. of days before expiration to issue a warning.')
     parser.add_argument(
         '--config-dir', type=str, help='Directory to search for web server config files.')
     parser.add_argument(
         '--web', action='store_true', help='Check the web server certificate.')
     parser.add_argument(
         '--ldap', action='store_true', help='Check the LDAP server certificate.')
-    parser.add_argument(
-        '--ca', action='store_true', help='Check the CA issuer certificate.')
     parser.add_argument(
         '--all', action='store_true', help='Check all web, LDAP, and CA issuer certificates.')
     parser.add_argument(
@@ -303,7 +329,7 @@ def main():
     setup_logging(args.logging)
 
     # Enable CA checks if --all is specified
-    ca_checks = args.ca or args.all
+    ca_checks = args.all
 
     # Web server certificates check
     if args.web or args.all:
@@ -318,10 +344,15 @@ def main():
         for name, directory in config_dirs.items():
             config_paths = list(find_config_files(directory, file_patterns))
             for path in config_paths:
-                cert_path = extract_certificate_path(path)
-                if cert_path:
-                    cert, _ = load_certificates(cert_path)
-                    check_certificate_expiry(cert, args.days, 'Web server')
+                if name == "nginx":
+                    cert_paths = extract_nginx_certificate_paths(path)
+                else:
+                    cert_paths = [extract_apache_certificate_path(path)]
+                
+                for cert_path in cert_paths:
+                    if cert_path:
+                        cert, _ = load_certificates(cert_path)
+                        check_certificate_expiry(cert, args.days, 'Web server')
 
     # LDAP server certificates check
     if args.ldap or args.all:
@@ -361,32 +392,12 @@ def main():
                                         verify_certificate_signature(
                                             cert, ca_cert, f'LDAP server {resolver_name}')
         except subprocess.CalledProcessError as e:
-            log_message(f"Failed to execute command: {str(e)}", error=True)
+            log_message(f"Failed to execute command: {e}", error=True)
         except json.JSONDecodeError:
             log_message("Failed to parse JSON from output.", error=True)
         except Exception as e:
-            log_message(f"An unexpected error occurred: {str(e)}", error=True)
-
-    if ca_checks:
-        try:
-            cmd = "pi-manage config exporter -t resolver -f json"
-            data = subprocess.check_output(cmd, shell=True).decode('utf-8')
-            data = json.loads(data)
-            for resolver_name, resolver_data in data["resolver"].items():
-                if resolver_data["data"].get("TLS_VERIFY", "").lower() == "true":
-                    ca_path = resolver_data["data"].get("TLS_CA_FILE")
-                    if ca_path:
-                        _, ca_cert = load_certificates(cert_path=None, ca_path=ca_path)
-                        if ca_cert:
-                            check_certificate_expiry(
-                                ca_cert, args.days, f'CA issuer from resolver "{resolver_name}"')
-        except subprocess.CalledProcessError as e:
-            log_message(f"Failed to execute command: {str(e)}", error=True)
-        except json.JSONDecodeError:
-            log_message("Failed to parse JSON from output.", error=True)
-        except Exception as e:
-            log_message(f"An unexpected error occurred: {str(e)}", error=True)
-
+            log_message(f"An unexpected error occurred: {e}", error=True)
 
 if __name__ == "__main__":
     main()
+
