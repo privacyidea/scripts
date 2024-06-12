@@ -1,7 +1,7 @@
 #!/opt/privacyidea/bin/python
 
 
-__doc__ = """
+"""
 Documentation of the Certificate Check Script
 
 Overview:
@@ -19,31 +19,35 @@ and supports several arguments to configure the certificate checks.
 Command Line Arguments:
 
 - `--days`: (optional) Number of days before expiration to issue a warning.
-- `--days`: If not set, it will use 30 days as default.
+            If not set, it will use 30 days as default.
 - `--config-dir`: Directory to search for web server configuration files.
 - `--web`: Checks the web server certificate.
 - `--ldap`: Checks the LDAP server certificate and corresponding CA certificate.
-- `--all`: Checks all web server, LDAP server, and CA certificates.
 - `--logging`: Path to the log file. If not set, logs will be printed to stdout.
-
+- `--exclude`: Resolvers to exclude from the check.
 
 Example Invocations:
 
-1. Check all certificates and log to a file (--all include this arguments: --web --ldap):
-   python check_certificates.py --days 30 --all --logging /path/to/logfile.log
+1. Check all certificates and log to a file:
+   "check_certificates.py"
 
 2. Check only web server certificates and output to console:
-   python check_certificates.py --days 30 --web
+   "check_certificates.py --web"
 
-3. Check LDAP server certificates and log to a file:
-   python check_certificates.py --days 30 --ldap --logging /path/to/logfile.log
-
+3. Check LDAP server certificates with a specific threshold value (days):
+   "check_certificates.py --days 60 --ldap"
 
 Example for stdout or logging:
 
-1. check_certificates.py --days 30 --all 2>> /var/log/privacyidea/custom.log
+1. "check_certificates.py --days 120 2>> /path/to/your/log.log"
 or
-2. check_certificates.py --days 120 --all --logging /var/log/privacyidea/custom.log
+2. "check_certificates.py --days 120 --logging /path/to/your/log.log"
+
+
+Example for exclude a resolver or more resolvers:
+
+1. "check_certificates.py --ldap --exclude resolver_name1"
+2. "check_certificates.py --ldap --exclude resolver_name1 resolver_name2"
 
 
 Sample Output:
@@ -69,24 +73,6 @@ When the script runs, the output may look like this:
  is valid for 1373 more days.
 2024-05-17 13:39:15,316 - INFO - CA issuer from resolver "ucs05" certificate is
  valid for 883 more days.
-
-
-Error Handling:
-
-The script handles various types of errors,
-such as failing to retrieve certificates or
-problems reading configuration files, and outputs corresponding error messages:
-
-unable to load certificate
-140293905839424:error:0909006C:PEM routines:get_name:no start line:../crypto/pem/pem_lib.c:745:
-Expecting: TRUSTED CERTIFICATE
-2024-05-22 09:54:06,976 - WARNING - Failed to retrieve certificate from 10.10.10.10:389.
- Trying connection check...
-2024-05-22 09:54:07,021 - ERROR - Failed to connect to 10.10.10.10:389:
- Command 'echo | openssl s_client -connect 10.10.10.10:389 2>/dev/null'
- returned non-zero exit status 1.
-2024-05-22 09:54:07,022 - WARNING - No certificate found for LDAP server from resolver
- "ldap_test" at 10.10.10.10:389
 
 
 Summary:
@@ -317,19 +303,23 @@ def main():
     parser.add_argument(
         '--ldap', action='store_true', help='Check the LDAP server certificate.')
     parser.add_argument(
-        '--all', action='store_true', help='Check all web, LDAP, and CA issuer certificates.')
-    parser.add_argument(
         '--logging', type=str, help='If log-path not set, logs will be printed to stdout.')
+    parser.add_argument(
+        '--exclude', type=str, nargs='*', help='Resolvers to exclude from the check.')
     args = parser.parse_args()
 
     # Setup logging based on the provided argument
     setup_logging(args.logging)
 
-    # Enable CA checks if --all is specified
-    ca_checks = args.all
+    # Convert exclude list to set for faster lookup
+    exclude_resolvers = set(args.exclude) if args.exclude else set()
+
+    # Determine what to check
+    check_web = args.web or not args.ldap
+    check_ldap = args.ldap or not args.web
 
     # Web server certificates check
-    if args.web or args.all:
+    if check_web:
         file_patterns = ['.conf']
         config_dirs = {
             "apache": "/etc/apache2/sites-enabled",
@@ -352,12 +342,15 @@ def main():
                         check_certificate_expiry(cert, args.days, 'Web server')
 
     # LDAP server certificates check
-    if args.ldap or args.all:
+    if check_ldap:
         try:
             cmd = "pi-manage config exporter -t resolver -f json"
             data = subprocess.check_output(cmd, shell=True).decode('utf-8')
             data = json.loads(data)
             for resolver_name, resolver_data in data["resolver"].items():
+                if resolver_name in exclude_resolvers:
+                    log_message(f"Skipping excluded resolver: {resolver_name}")
+                    continue
                 ldap_uri = resolver_data["data"].get("LDAPURI")
                 if ldap_uri:
                     uri_parts = ldap_uri.split("://")
