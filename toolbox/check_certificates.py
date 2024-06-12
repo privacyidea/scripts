@@ -49,6 +49,10 @@ Example for exclude a resolver or more resolvers:
 1. "check_certificates.py --ldap --exclude resolver_name1"
 2. "check_certificates.py --ldap --exclude resolver_name1 resolver_name2"
 
+Example for a non default configuration location:
+
+"PRIVACYIDEA_CONFIGFILE=/path/to/pi.cfg check_certificates.py"
+
 
 Sample Output:
 
@@ -88,7 +92,7 @@ import argparse
 import json
 import subprocess
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -136,7 +140,8 @@ def find_config_files(directory, file_patterns):
     """
     for root, _, files in os.walk(directory):
         for file in files:
-            if any(file.endswith(pattern) for pattern in file_patterns) or not os.path.splitext(file)[1]:
+            if any(file.endswith(pattern) 
+                for pattern in file_patterns) or not os.path.splitext(file)[1]:
                 yield os.path.join(root, file)
 
 
@@ -212,7 +217,12 @@ def check_certificate_expiry(cert, days, cert_description):
     :param cert_description: A description of the certificate.
     """
     if cert:
-        days_to_expire = (cert.not_valid_after - datetime.now()).days
+        try:
+            days_to_expire = (cert.not_valid_after_utc - datetime.now(tz=timezone.utc)).days
+        except AttributeError:
+            # looks like pyca/cryptography version < 42.0
+            not_valid_after = cert.not_valid_after.replace(tzinfo=timezone.utc)
+            days_to_expire = (not_valid_after - datetime.now(tz=timezone.utc)).days
         message = f'{cert_description} certificate is valid for {days_to_expire} more days.'
         log_message(message)
         if days_to_expire <= days:
@@ -335,7 +345,6 @@ def main():
                     cert_paths = extract_nginx_certificate_paths(path)
                 else:
                     cert_paths = [extract_apache_certificate_path(path)]
-                
                 for cert_path in cert_paths:
                     if cert_path:
                         cert, _ = load_certificates(cert_path)
@@ -387,6 +396,7 @@ def main():
             log_message("Failed to parse JSON from output.", error=True)
         except Exception as e:
             log_message(f"An unexpected error occurred: {e}", error=True)
+
 
 if __name__ == "__main__":
     main()
