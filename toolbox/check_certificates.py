@@ -140,8 +140,8 @@ def find_config_files(directory, file_patterns):
     """
     for root, _, files in os.walk(directory):
         for file in files:
-            if any(file.endswith(pattern) 
-                for pattern in file_patterns) or not os.path.splitext(file)[1]:
+            if any(file.endswith(pattern)
+                    for pattern in file_patterns) or not os.path.splitext(file)[1]:
                 yield os.path.join(root, file)
 
 
@@ -400,4 +400,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
