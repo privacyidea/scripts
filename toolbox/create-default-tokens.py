@@ -13,6 +13,9 @@ import logging
 import urllib3
 import requests
 
+
+
+
 __doc__ = """
 This scripts creates new tokens of the specified types for all users in a
 given realm who do not already have a token of this type.
@@ -74,7 +77,7 @@ def get_auth_tok():
                       data={"username": ADMIN_USER, "password": ADMIN_PASSWORD})
     if r.status_code == 200:
         authorization = r.json().get("result").get("value").get("token")
-        log.info('Auth token obtained')
+        print('Auth token obtained')
         return authorization
     else:
         error_msg = r.json().get("result").get("error").get("message")
@@ -97,7 +100,7 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
                 isinstance(user_obj.info[userinfo_key], list) and userinfo_value in user_obj.info[userinfo_key]:
             return True
     else:
-        log.debug("Userinfo key does not exists or value does not match"
+        print("Userinfo key does not exists or value does not match"
                  " for user {0!s} in realm {1!s}.".format(user_obj.login,
                                                           user_obj.realm))
         return False
@@ -105,7 +108,7 @@ def check_userinfo(user_obj, userinfo_key=None, userinfo_value=None):
 
 def create_default_tokens(realm, auth_token=None, username=None,
                           userinfo_key=None, userinfo_value=None,
-                          tokentype=None, check_existing_tokentype=None):
+                          tokentype=None, check_existing_tokentypes=None):
     """
     This method creates the default tokens for the users in the given realm.
     You may add a userinfo condition.
@@ -114,6 +117,8 @@ def create_default_tokens(realm, auth_token=None, username=None,
     from privacyidea.lib.token import init_token, get_tokens
     from privacyidea.lib.user import User, get_user_list
     from privacyidea.app import create_app
+
+
 
     tokentypes = [tokentype] if tokentype else PRIMARY_TOKEN_TYPES
 
@@ -135,14 +140,14 @@ def create_default_tokens(realm, auth_token=None, username=None,
                 if check_userinfo(user_obj, userinfo_key, userinfo_value):
                     for type in tokentypes:
                         serial = None
-                        tokens = get_tokens(user=user_obj, tokentype=check_existing_tokentype)
+                        tokens = get_tokens(user=user_obj, token_type_list=check_existing_tokentypes)
                         # if no token of the specified type exists, create one
                         # create sms token only if mobile number exists
                         if len(tokens) == 0:
                             if (type == "email" and not user_obj.info.get("email")) or \
                                (type == "sms" and not user_obj.get_user_phone(index=0,
                                                                               phone_type='mobile')):
-                                log.info("User attribute missing for user {0!s}@{1!s}."
+                                print("User attribute missing for user {0!s}@{1!s}."
                                          "Cannot create {2!s} token.".format(user_obj.login,
                                                                              user_obj.realm, type))
                                 continue
@@ -160,7 +165,7 @@ def create_default_tokens(realm, auth_token=None, username=None,
                                         serial = r.json().get("detail").get("serial")
                                     else:
                                         error = r.json().get("result").get("error")
-                                        log.info("Enrolling {0!s} token for user {1!s} in realm "
+                                        print("Enrolling {0!s} token for user {1!s} in realm "
                                                  "{2!s} via API: {3!s}".format(type,
                                                                                user_obj.login,
                                                                                user_obj.realm,
@@ -170,17 +175,26 @@ def create_default_tokens(realm, auth_token=None, username=None,
                                     token_obj = init_token(params, user_obj)
                                     serial = token_obj.token.serial
                                 if serial:
-                                    log.info('Enrolled a primary {0!s} token for '
+                                    print('Enrolled a primary {0!s} token for '
                                              'user {1!s} in realm {2!s}'.format(type,
                                                                                 user_obj.login,
                                                                                 user_obj.realm))
                         else:
-                            log.info("User {0!s} in realm {1!s} already has a {2!s} token. "
+
+                            matched_token_types = ""
+                            for token in tokens:
+                                if matched_token_types.count(token.get_tokentype()) == 0:
+                                    matched_token_types = matched_token_types + token.get_tokentype()
+                                    matched_token_types = matched_token_types + ", "
+                            matched_token_types = matched_token_types[:-2]
+
+
+                            print("User {0!s} in realm {1!s} already has at least one of these tokens: {2!s}. "
                                      "Not creating another one.".format(user_obj.login,
                                                                         user_obj.realm,
-                                                                        check_existing_tokentype or "**any**"))
+                                                                        matched_token_types or "**any**"))
             else:
-                log.info('User {0!s} does not exists in any resolver in '
+                print('User {0!s} does not exists in any resolver in '
                          'realm {1!s}'.format(user_obj.login, user_obj.realm))
 
 
@@ -200,7 +214,8 @@ parser.add_argument('--userinfo-value', dest='userinfo_value', required=False,
 parser.add_argument('--tokentype', dest='tokentype', required=False,
                     help="Create tokens of this type. The default type "
                          "is set in the script by the variable PRIMARY_TOKEN_TYPES")
-parser.add_argument('--check-existing-tokentype', dest='check_existing_tokentype',
+parser.add_argument('--check-existing-tokentypes', dest='check_existing_tokentypes',
+                    nargs="*",
                     help="If this tokentype is given, the new token will only be created, if the user "
                          "has no token of this given tokentype. If this parameter is not specified, "
                          "the token will only be created, if the user has no token at all.")
@@ -225,9 +240,9 @@ create_default_tokens(args.realm,
                       userinfo_key=args.userinfo_key,
                       userinfo_value=args.userinfo_value,
                       tokentype=args.tokentype,
-                      check_existing_tokentype=args.check_existing_tokentype)
+                      check_existing_tokentypes=args.check_existing_tokentypes)
 
 
 if TRACK_TIME:
     stop = timeit.default_timer()
-    log.debug("auto-enrollment script runtime: {0:.2f} s".format(stop - start))
+    print("auto-enrollment script runtime: {0:.2f} s".format(stop - start))
