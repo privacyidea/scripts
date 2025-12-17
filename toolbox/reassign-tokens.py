@@ -12,7 +12,7 @@ __doc__ = """
 This script re-assigns tokens to users from one realm to another realm and resolver
 The login name of the user stays the same.
 
-   migrate-token.py --from_realm --from_resolver --to_realm --to_resolver
+   reassign-tokens.py --from_realm --from_resolver --to_realm --to_resolver
 
 Adapt it to your needs.
 
