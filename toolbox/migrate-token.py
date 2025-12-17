@@ -12,7 +12,7 @@ __doc__ = """
 This script re-assigns tokens to users from one realm to another realm and resolver
 The login name of the user stays the same.
 
-   migrate-token.py --from_realm --from_resolver --to_realm --to_resolver  
+   migrate-token.py --from_realm --from_resolver --to_realm --to_resolver
 
 Adapt it to your needs.
 
@@ -41,12 +41,14 @@ parser.add_argument('--from_realm', dest='from_realm', required=True,
                     help="The old realm of the tokenowner.")
 parser.add_argument('--from_resolver', dest='from_resolver', required=True,
                     help="The old resolver of the tokenowner.")
+parser.add_argument('--dry_run', dest='dry_run', action='store_true')
 args = parser.parse_args()
 
 to_realm = args.to_realm
 to_resolver = args.to_resolver
 from_realm = args.from_realm
 from_resolver = args.from_resolver
+dry_run = args.dry_run
 
 app = create_app(config_name="production",
                  config_file="/etc/privacyidea/pi.cfg",
@@ -62,8 +64,10 @@ with app.app_context():
         try:
             if tok.user:
                 user_obj = User(tok.user.login, to_realm, resolver=to_resolver)
-                unassign_token(serial)
-                assign_token(serial, user_obj)
+                if not dry_run:
+                    unassign_token(serial)
+                    assign_token(serial, user_obj)
+
                 print(" +-- Assigned token {0!s} to user {1!s}.".format(serial, user_obj))
         except UserError as err:
             sys.stderr.write(" +-- Failed finding user: {0!s}.\n".format(err))
@@ -71,6 +75,3 @@ with app.app_context():
             sys.stderr.write(" +-- Failed assigning token {0!s}: {1!s}.\n".format(serial, err))
         except ResourceNotFoundError as err:
             sys.stderr.write(" +-- Failed assigning token {0!s}: {1!s}.\n".format(serial, err))
-
-
-
