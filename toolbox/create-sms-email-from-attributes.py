@@ -30,7 +30,7 @@ from privacyidea.app import create_app
 CONFIG = "/etc/privacyidea/pi.cfg"
 
 
-def create_tokens(pi_app, realm, mobile_attr, email_attr):
+def create_tokens(pi_app, realm, mobile_attr, email_attr, args):
     with (pi_app.app_context()):
         # find all the users
         userlist = get_user_list(param={"realm": realm})
@@ -47,7 +47,7 @@ def create_tokens(pi_app, realm, mobile_attr, email_attr):
                 create_mobile = True
                 create_mail = True
                 for token in tokens:
-                    print("User: {0!s}, checking token: {1!s}".format(user_obj, token.token.get("serial")))
+                    if args.print_verbose: print("User: {0!s}, checking token: {1!s}".format(user_obj, token.token.get("serial")))
                     if token.token.get("tokentype") == "sms" and check_mobile:
                         # compare the phone number
                         if token.get_tokeninfo("phone") == user_dict.get(mobile_attr):
@@ -62,12 +62,12 @@ def create_tokens(pi_app, realm, mobile_attr, email_attr):
                     init_token({"phone": user_dict.get(mobile_attr),
                                    "type": "sms",
                                    "genkey": 1}, user=user_obj)
-                    print("Created SMS token for user: {0!s}".format(user_obj))
+                    if not args.print_silent: print("Created SMS token for user: {0!s}".format(user_obj))
                 if create_mail and check_mail:
-                     init_token({"email": user_dict.get(email_attr),
+                    init_token({"email": user_dict.get(email_attr),
                                    "type": "email",
                                    "genkey": 1}, user=user_obj)
-                     print("Created Email token for user: {0!s}".format(user_obj))
+                    if not args.print_silent: print("Created Email token for user: {0!s}".format(user_obj))
 
 
 def main():
@@ -82,14 +82,19 @@ def main():
                         help="Create SMS tokens from this user attribute.")
     parser.add_argument('--emailattr', dest='email_attr', required=False,
                         help="Create Email tokens from this user attribute.")
+    parser.add_argument('--verbose', dest='print_verbose', required=False, action='store_true',
+                        help="Prints checked tokens.")
+    parser.add_argument('--silent', dest='print_silent', required=False, action='store_true',
+                        help="Do not print created tokens.")
     args = parser.parse_args()
 
     pi_app = create_app(config_name="production",
                         config_file=args.config or CONFIG,
                         silent=True)
 
-    create_tokens(pi_app, args.realm, args.mobile_attr, args.email_attr)
+    create_tokens(pi_app, args.realm, args.mobile_attr, args.email_attr, args)
 
 
 if __name__ == '__main__':
     main()
+
