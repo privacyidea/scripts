@@ -1,0 +1,108 @@
+#!/bin/bash
+# privacyidea-create-ssh
+#
+# This script creates an SSH key for a user and also attaches a service ID.
+# This script can be used by pam-script, which runs in the root context.
+# The configuration is stored in the file /etc/pam-script/pi.conf and can 
+# store the credentials for the API request to the privacyIDEA server.
+#
+# Add this script or link it as /etc/pam-script/pam_script_ses_open
+# Your PAM session config can look like this:
+#
+# session optional        pam_script.so dir=/etc/pam-script/
+#
+# This script will then create an SSH Key, pass the public key to the privacyIDEA
+# server and attach the mentioned service_id, configured in pi.conf.
+
+
+source /etc/pam-script/pi.conf
+
+# Determine the user either as parameter or from the pam-script variable.
+user=$PAM_USER
+if [ -z "$PAM_USER" ]; then
+	user=$1
+fi
+if [ -z "$user" ]; then
+	echo "Missing user parameter."
+	exit 1
+fi
+
+HOME_DIR=`eval echo ~$user`
+SSHKEY_FILENAME=$HOME_DIR/.ssh/privacyidea
+SSHKEY_TYPE=ed25519
+REMEMBER_TOKEN_FILENAME=$HOME_DIR/.privacyidea-last-sshkey
+echo "Cleaning up old SSH keys"
+rm $SSHKEY_FILENAME
+rm $SSHKEY_FILENAME.pub
+rm $REMEMBER_TOKEN_FILENAME
+ssh-keygen -t $SSHKEY_TYPE -C "$comment" -f $SSHKEY_FILENAME -P ''
+pubkey=`cat $SSHKEY_FILENAME.pub`
+
+# some checks for dependencies
+command -v jq >/dev/null 2>&1 || { echo >&2 "script requires jq but it is not installed.  Aborting."; exit 2; }
+command -v sed >/dev/null 2>&1 || { echo >&2 "script requires sed but it is not installed.  Aborting."; exit 2; }
+command -v curl >/dev/null 2>&1 || { echo >&2 "script requires curl but it is not installed.  Aborting."; exit 2; }
+command -v tr >/dev/null 2>&1 || { echo >&2 "script requires tr but it is not installed.  Aborting."; exit 2; }
+
+# other variables
+baseurl="https://$server"
+tokentype='sshkey'
+headersalways1='Content-type: application/json'
+headersalways2='Accept: application/json'
+cpar="-s $insecure"  # add -v to get verbose output if you search for bugs!
+
+# retrieve authentication token (we need this for all further requests
+# see http://privacyidea.readthedocs.org/en/latest/modules/api/auth.html
+# this is a POST request with data
+json=$(curl $cpar -H "$headersalways1" -H "$headersalways2" -d '{ "username":"'$serviceaccount'", "password":"'$password'" }' $baseurl/auth)
+jstatus=$(echo "$json"|jq .result.status)
+
+#echo $json
+#
+if [[ "$jstatus" != "true" ]]; then # if request failed .result.status=false
+  # TODO: If the SSL cert fails, we also run into this tree
+  echo "Could not get a valid token with the provided credentials"
+  exit 1
+else
+  token=$(echo "$json"|jq .result.value.token|sed 's/"//g') # get token from json and remove double quotes
+fi
+
+# Now create the SSH key in the privacyIDEA server
+echo "================================================="
+echo " Now creating a new ssh key token for user $user"
+echo "================================================="
+json=$(curl $cpar -H "Authorization: $token" -d "type=$tokentype" -d "sshkey=$pubkey" -d "user=$user" $baseurl/token/init)
+
+#echo $json
+
+jstatus=$(echo "$json"|jq .result.status)
+
+
+if [[ "$jstatus" == "true" ]]; then
+   
+   serial=$(echo $json|jq .detail.serial|xargs)
+   echo "Created the SSH Key $serial"
+   echo $serial > $REMEMBER_TOKEN_FILENAME
+else
+ echo "no successful query!"
+fi
+
+echo "==============================================="
+echo " Attaching your SSH key to service $service_id"
+echo "==============================================="
+
+json=$(curl $cpar -H "Authorization: $token" -d "service_id=$service_id" -d "user=$sshuser" -d "application=ssh" -d "serial=$serial" $baseurl/machine/token)
+
+#echo $json
+
+jstatus=$(echo "$json"|jq .result.status)
+
+
+if [[ "$jstatus" == "true" ]]; then
+
+   value=$(echo $json|jq .result.value|xargs)
+   echo "Attached the application $value"
+else
+ echo "no successful query!"
+fi
+

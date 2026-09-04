@@ -1,0 +1,85 @@
+#!/bin/bash
+# privacyidea-remove-ssh
+#
+# This script removes a previously created SSH key pair.
+# It also removes the SSH key from the privacyIDEA server.
+# This script can be used by pam-script, which runs in the root context.
+# The configuration is stored in the file /etc/pam-script/pi.conf and can
+# store the credentials for the API request to the privacyIDEA server.
+#
+# Add this script or link it as /etc/pam-script/pam_script_ses_close
+# Your PAM session config can look like this:
+#
+# session optional        pam_script.so dir=/etc/pam-script/
+#
+# This script will then remove the SSH Key pair locally and from the privacyIDEA
+# server.
+#
+
+source /etc/pam-script/pi.conf
+
+user=$PAM_USER
+if [ -z "$PAM_USER" ]; then
+	user=$1
+fi
+if [ -z "$user" ]; then
+	echo "Missing user parameter."
+	exit 1
+fi
+
+HOME_DIR=`eval echo ~$user`
+SSHKEY_FILENAME=$HOME_DIR/.ssh/privacyidea
+SSHKEY_TYPE=ed25519
+REMEMBER_TOKEN_FILENAME=$HOME_DIR/.privacyidea-last-sshkey
+echo "Cleaning up old SSH keys"
+rm -f $SSHKEY_FILENAME
+rm -f $SSHKEY_FILENAME.pub
+serial=`cat $REMEMBER_TOKEN_FILENAME`
+rm -f $REMEMBER_TOKEN_FILENAME
+
+# some checks for dependencies
+command -v jq >/dev/null 2>&1 || { echo >&2 "script requires jq but it is not installed.  Aborting."; exit 2; }
+command -v sed >/dev/null 2>&1 || { echo >&2 "script requires sed but it is not installed.  Aborting."; exit 2; }
+command -v curl >/dev/null 2>&1 || { echo >&2 "script requires curl but it is not installed.  Aborting."; exit 2; }
+command -v tr >/dev/null 2>&1 || { echo >&2 "script requires tr but it is not installed.  Aborting."; exit 2; }
+
+# other variables
+baseurl="https://$server"
+tokentype='sshkey'
+headersalways1='Content-type: application/json'
+headersalways2='Accept: application/json'
+cpar="-s $insecure"  # add -v to get verbose output if you search for bugs!
+
+# retrieve authentication token (we need this for all further requests
+# see http://privacyidea.readthedocs.org/en/latest/modules/api/auth.html
+# this is a POST request with data
+json=$(curl $cpar -H "$headersalways1" -H "$headersalways2" -d '{ "username":"'$serviceaccount'", "password":"'$password'" }' $baseurl/auth)
+jstatus=$(echo "$json"|jq .result.status)
+
+#echo $json
+#
+if [[ "$jstatus" != "true" ]]; then # if request failed .result.status=false
+  # TODO: If the SSL cert fails, we also run into this tree
+  echo "Could not get a valid token with the provided credentials"
+  exit 1
+else
+  token=$(echo "$json"|jq .result.value.token|sed 's/"//g') # get token from json and remove double quotes
+fi
+
+# Now create the SSH key in the privacyIDEA server
+echo "================================================="
+echo " Now deleting the  ssh key token $serial"
+echo "================================================="
+json=$(curl $cpar -X "DELETE" -H "Authorization: $token" -d "serial=$serial" -d "user=$user" $baseurl/token/)
+
+#echo $json
+
+jstatus=$(echo "$json"|jq .result.status)
+
+
+if [[ "$jstatus" == "true" ]]; then
+   count=$(echo $json|jq .result.value|xargs)
+   echo "Removed the SSH Key $serial. Count: $count"
+else
+ echo "no successful query!"
+fi
