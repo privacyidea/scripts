@@ -71,7 +71,7 @@ fi
 echo "================================================="
 echo " Now creating a new ssh key token for user $user"
 echo "================================================="
-json=$(curl $cpar -H "Authorization: $token" -d "type=$tokentype" -d "sshkey=$pubkey" -d "user=$user" $baseurl/token/init)
+json=$(curl $cpar -H "Authorization: $token" -d "type=$tokentype" --data-urlencode "sshkey=$pubkey" -d "user=$user" $baseurl/token/init)
 
 #echo $json
 
